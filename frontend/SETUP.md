@@ -56,3 +56,4 @@ If you see a white screen:
 2. Ensure all environment variables are set correctly
 3. Verify Supabase project configuration
 4. In development mode, the app will use mock authentication if Supabase is not configured
+
