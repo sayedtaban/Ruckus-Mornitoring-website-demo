@@ -308,3 +308,4 @@ To generate real data, implement a connector service that:
 - FastAPI for excellent Python web framework
 - React + Vite for modern frontend development
 
+
