@@ -59,3 +59,4 @@ async def get_cause_codes(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
