@@ -18,3 +18,4 @@ class Anomaly(BaseModel):
 # Response is just a list
 AnomalyResponse = List[Anomaly]
 
+
