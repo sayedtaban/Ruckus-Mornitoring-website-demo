@@ -12,3 +12,4 @@ class HostUsage(BaseModel):
 # Response is just a list
 HostUsageResponse = List[HostUsage]
 
+
