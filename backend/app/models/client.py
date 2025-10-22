@@ -22,3 +22,4 @@ class ClientResponse(BaseModel):
     data: List[Client]
     pagination: dict
 
+
