@@ -524,3 +524,4 @@ def seed_influx(hours: int = 1, client_count: int = 100):
 if __name__ == '__main__':
     random.seed()
     seed_influx(hours=1, client_count=120)
+
