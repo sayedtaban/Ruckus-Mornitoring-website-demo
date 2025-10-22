@@ -13,3 +13,4 @@ class OSDistribution(BaseModel):
 # Response is just a list
 OSDistributionResponse = List[OSDistribution]
 
+
