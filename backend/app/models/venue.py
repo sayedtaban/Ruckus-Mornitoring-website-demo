@@ -29,3 +29,4 @@ class VenueResponse(BaseModel):
     slaCompliance: float
     zones: List[Zone]
 
+
