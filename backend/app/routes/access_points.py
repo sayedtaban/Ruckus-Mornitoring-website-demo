@@ -103,3 +103,4 @@ async def get_access_points(zone_id: str = Path(..., description="Zone identifie
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
