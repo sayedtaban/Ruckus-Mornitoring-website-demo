@@ -41,3 +41,4 @@ async def get_hosts(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
