@@ -76,3 +76,4 @@ async def get_venue():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
