@@ -51,3 +51,4 @@ async def get_os_distribution():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
