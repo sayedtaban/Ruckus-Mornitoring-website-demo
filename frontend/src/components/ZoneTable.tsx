@@ -114,3 +114,4 @@ export default function ZoneTable({ zones, onZoneSelect }: ZoneTableProps) {
     </div>
   );
 }
+
