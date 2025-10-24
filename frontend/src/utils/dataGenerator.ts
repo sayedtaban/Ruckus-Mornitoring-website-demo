@@ -600,3 +600,4 @@ export function generateBandLoadData(hours: number = 1): BandLoadData[] {
     }
   ];
 }
+
