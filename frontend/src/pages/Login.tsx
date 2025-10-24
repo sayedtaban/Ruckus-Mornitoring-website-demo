@@ -122,3 +122,4 @@ export default function Login({ onNavigateToRegister }: LoginProps) {
     </div>
   );
 }
+
