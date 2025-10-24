@@ -151,3 +151,4 @@ export default function AnomalyList({ anomalies, maxItems = 10 }: AnomalyListPro
     </div>
   );
 }
+
