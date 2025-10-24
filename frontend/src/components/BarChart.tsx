@@ -91,3 +91,4 @@ export default function BarChart({ data, title, highlightCode = 25 }: BarChartPr
     </div>
   );
 }
+
