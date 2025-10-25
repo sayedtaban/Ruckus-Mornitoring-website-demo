@@ -96,3 +96,4 @@ This will create the admin user with:
 - This is normal if Supabase instance is not accessible
 - Use Option A (UI registration) instead
 - The script is provided for convenience in production setups
+
