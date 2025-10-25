@@ -176,3 +176,4 @@ scripts/
 - **Neutral**: Slate (50-900) - UI elements
 
 No purple or indigo hues used (as per requirements).
+
