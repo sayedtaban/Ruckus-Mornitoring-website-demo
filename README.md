@@ -54,7 +54,6 @@ pip install -r requirements.txt
 # Copy .env.example to .env and update with your InfluxDB credentials
 cp .env.example .env
 
-# Edit .env with your settings:
 # INFLUXDB_URL=http://localhost:8086
 # INFLUXDB_TOKEN=your-token-here
 # INFLUXDB_ORG=ruckus
