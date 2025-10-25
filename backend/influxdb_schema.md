@@ -524,3 +524,4 @@ def write_client_metrics(client_data):
 4. **Error Handling**: Implement retry logic for failed writes.
 5. **Time Precision**: Use nanosecond precision for timestamps (InfluxDB default).
 
+
