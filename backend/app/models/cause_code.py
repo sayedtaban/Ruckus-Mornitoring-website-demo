@@ -14,3 +14,4 @@ class CauseCode(BaseModel):
 # Response is just a list
 CauseCodeResponse = List[CauseCode]
 
+
