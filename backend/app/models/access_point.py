@@ -36,3 +36,4 @@ class AccessPointResponse(BaseModel):
     total: int
     list: List[AccessPoint]
 
+
