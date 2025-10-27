@@ -69,3 +69,4 @@ class InfluxDBService:
 # Global instance
 influx_service = InfluxDBService()
 
+
