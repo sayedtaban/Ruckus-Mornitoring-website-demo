@@ -23,3 +23,4 @@ class LoadResponse(BaseModel):
     """Response model for load endpoint."""
     bands: List[BandData]
 
+
