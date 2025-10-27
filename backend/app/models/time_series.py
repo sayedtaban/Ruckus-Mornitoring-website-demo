@@ -14,3 +14,4 @@ class TimeSeriesPoint(BaseModel):
 # Response is just a list
 TimeSeriesResponse = List[TimeSeriesPoint]
 
+
