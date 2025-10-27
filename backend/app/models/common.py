@@ -26,3 +26,4 @@ class PaginationResponse(BaseModel):
     offset: int
     hasMore: bool
 
+
