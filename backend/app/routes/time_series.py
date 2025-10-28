@@ -56,3 +56,4 @@ async def get_time_series(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
