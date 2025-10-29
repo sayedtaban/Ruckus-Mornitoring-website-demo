@@ -224,3 +224,4 @@ export default function Register({ onNavigateToLogin }: RegisterProps) {
     </div>
   );
 }
+
