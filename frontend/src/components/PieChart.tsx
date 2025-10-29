@@ -60,3 +60,4 @@ export default function PieChart({ title, data, height = 200 }: PieChartProps) {
   );
 }
 
+
