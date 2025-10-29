@@ -95,3 +95,4 @@ export const convertUsernameToEmail = (username: string): string => {
 export const convertEmailToUsername = (email: string): string => {
   return email.replace('@smartzone.local', '');
 };
+
