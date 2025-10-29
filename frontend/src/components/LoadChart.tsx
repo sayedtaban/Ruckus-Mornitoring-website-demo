@@ -209,3 +209,4 @@ export default function LoadChart({ data, title = "Load", height = 300, timeRang
   );
 }
 
+
