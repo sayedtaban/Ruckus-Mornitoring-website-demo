@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 import random
-from typing import List, Dict
+from typing import List, Dict, Optional
+import argparse
 
 from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
@@ -319,14 +320,27 @@ def generate_load_points(hours: int = 1) -> List[Dict]:
     return data
 
 
-def write_points(client: InfluxDBClient, points: List[Point]):
+def write_points(client: InfluxDBClient, points: List[Point], *, org: str, bucket: str):
     write_api = client.write_api(write_options=SYNCHRONOUS)
     if points:
-        write_api.write(bucket=settings.influxdb_bucket, org=settings.influxdb_org, record=points)
+        write_api.write(bucket=bucket, org=org, record=points)
 
 
-def seed_influx(hours: int = 1, client_count: int = 100):
-    client = InfluxDBClient(url=settings.influxdb_url, token=settings.influxdb_token, org=settings.influxdb_org)
+def seed_influx(
+    hours: int = 1,
+    client_count: int = 100,
+    *,
+    url: Optional[str] = None,
+    token: Optional[str] = None,
+    org: Optional[str] = None,
+    bucket: Optional[str] = None,
+):
+    url = url or settings.influxdb_url
+    token = token or settings.influxdb_token
+    org = org or settings.influxdb_org
+    bucket = bucket or settings.influxdb_bucket
+
+    client = InfluxDBClient(url=url, token=token, org=org)
     points: List[Point] = []
 
     venue = generate_venue()
@@ -517,11 +531,33 @@ def seed_influx(hours: int = 1, client_count: int = 100):
             )
 
     # Write all points
-    write_points(client, points)
+    write_points(client, points, org=org, bucket=bucket)
     client.close()
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Seed InfluxDB with demo data')
+    parser.add_argument('--hours', type=int, default=1, help='Hours of time-series data to generate')
+    parser.add_argument('--clients', type=int, default=120, help='Number of client records to generate')
+    parser.add_argument('--url', type=str, default=None, help='InfluxDB URL (overrides default)')
+    parser.add_argument('--org', type=str, default=None, help='InfluxDB org (overrides default)')
+    parser.add_argument('--bucket', type=str, default=None, help='InfluxDB bucket (overrides default)')
+    parser.add_argument('--token', type=str, default=None, help='InfluxDB token (overrides default)')
+    args = parser.parse_args()
+
     random.seed()
-    seed_influx(hours=1, client_count=120)
+    print(f"Seeding InfluxDB -> url={args.url or settings.influxdb_url}, org={args.org or settings.influxdb_org}, bucket={args.bucket or settings.influxdb_bucket}")
+    try:
+        seed_influx(
+            hours=max(1, args.hours),
+            client_count=max(1, args.clients),
+            url=args.url,
+            token=args.token,
+            org=args.org,
+            bucket=args.bucket,
+        )
+        print('Seeding completed successfully.')
+    except Exception as e:
+        print(f"Seeding failed: {e}")
+        raise
 
