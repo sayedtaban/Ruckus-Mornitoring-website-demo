@@ -20,12 +20,36 @@ export default function ClientsTable({ clients, hosts, osDistribution }: Clients
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<ClientSortKey>('hostname');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [wlanFilter, setWlanFilter] = useState<string>('all');
+  const [osFilter, setOsFilter] = useState<string>('all');
+  const [deviceTypeFilter, setDeviceTypeFilter] = useState<string>('all');
+
+  const wlanOptions = useMemo(() => {
+    return Array.from(new Set(clients.map(c => c.wlan))).sort();
+  }, [clients]);
+
+  const osOptions = useMemo(() => {
+    return Array.from(new Set(clients.map(c => c.os).filter(Boolean))) as string[];
+  }, [clients]);
+
+  const deviceTypeOptions = useMemo(() => {
+    return Array.from(new Set(clients.map(c => c.deviceType).filter(Boolean))) as string[];
+  }, [clients]);
 
   const visibleClients = useMemo(() => {
     const q = search.trim().toLowerCase();
     let filtered = clients;
+    if (wlanFilter !== 'all') {
+      filtered = filtered.filter(c => c.wlan === wlanFilter);
+    }
+    if (osFilter !== 'all') {
+      filtered = filtered.filter(c => (c.os || '').toLowerCase() === osFilter.toLowerCase());
+    }
+    if (deviceTypeFilter !== 'all') {
+      filtered = filtered.filter(c => (c.deviceType || '') === deviceTypeFilter);
+    }
     if (q) {
-      filtered = clients.filter((c) =>
+      filtered = filtered.filter((c) =>
         [c.hostname, c.modelName, c.ipAddress, c.macAddress, c.wlan, c.apName, c.apMac]
           .join(' ')
           .toLowerCase()
@@ -63,8 +87,35 @@ export default function ClientsTable({ clients, hosts, osDistribution }: Clients
             <option>Last 7d</option>
             <option>Last 30d</option>
           </select>
-          <select className="bg-grafana-bg border border-grafana-border text-grafana-text text-sm px-3 py-2 rounded">
-            <option>All zones</option>
+          <select
+            value={wlanFilter}
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setWlanFilter(e.target.value)}
+            className="bg-grafana-bg border border-grafana-border text-grafana-text text-sm px-3 py-2 rounded"
+          >
+            <option value="all">All WLANs</option>
+            {wlanOptions.map((w: string) => (
+              <option key={w} value={w}>{w}</option>
+            ))}
+          </select>
+          <select
+            value={osFilter}
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setOsFilter(e.target.value)}
+            className="bg-grafana-bg border border-grafana-border text-grafana-text text-sm px-3 py-2 rounded"
+          >
+            <option value="all">All OS</option>
+            {osOptions.map((o: string) => (
+              <option key={o} value={o}>{o}</option>
+            ))}
+          </select>
+          <select
+            value={deviceTypeFilter}
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setDeviceTypeFilter(e.target.value)}
+            className="bg-grafana-bg border border-grafana-border text-grafana-text text-sm px-3 py-2 rounded"
+          >
+            <option value="all">All Devices</option>
+            {deviceTypeOptions.map((d: string) => (
+              <option key={d} value={d}>{d}</option>
+            ))}
           </select>
         </div>
       </div>
@@ -204,13 +255,45 @@ export default function ClientsTable({ clients, hosts, osDistribution }: Clients
                 More <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
               </button>
             </div>
-            <input
-              type="text"
-              placeholder="search"
-              value={search}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
-              className="px-3 py-1.5 bg-grafana-bg border border-grafana-border text-grafana-text text-sm rounded"
-            />
+            <div className="flex items-center gap-2">
+              <select
+                value={wlanFilter}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setWlanFilter(e.target.value)}
+                className="bg-grafana-bg border border-grafana-border text-grafana-text text-xs px-2.5 py-1 rounded"
+              >
+                <option value="all">All WLANs</option>
+                {wlanOptions.map((w: string) => (
+                  <option key={w} value={w}>{w}</option>
+                ))}
+              </select>
+              <select
+                value={osFilter}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setOsFilter(e.target.value)}
+                className="bg-grafana-bg border border-grafana-border text-grafana-text text-xs px-2.5 py-1 rounded"
+              >
+                <option value="all">All OS</option>
+                {osOptions.map((o: string) => (
+                  <option key={o} value={o}>{o}</option>
+                ))}
+              </select>
+              <select
+                value={deviceTypeFilter}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setDeviceTypeFilter(e.target.value)}
+                className="bg-grafana-bg border border-grafana-border text-grafana-text text-xs px-2.5 py-1 rounded"
+              >
+                <option value="all">All Devices</option>
+                {deviceTypeOptions.map((d: string) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+              <input
+                type="text"
+                placeholder="search"
+                value={search}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
+                className="px-3 py-1.5 bg-grafana-bg border border-grafana-border text-grafana-text text-sm rounded"
+              />
+            </div>
           </div>
         </div>
 

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { VenueData, CauseCodeData } from '../types';
 import LineChart from '../components/LineChart';
 import BarChart from '../components/BarChart';
@@ -9,6 +9,9 @@ interface NetflixScoreDashboardProps {
   venueData: VenueData;
   causeCodeData: CauseCodeData[];
 }
+
+type RankSortKey = 'name' | 'netflixScore' | 'utilization' | 'rxDesense';
+type NFClassification = 'all' | 'good' | 'fair' | 'poor';
 
 export default function NetflixScoreDashboard({ venueData, causeCodeData }: NetflixScoreDashboardProps) {
   const topZones = useMemo(() => {
@@ -31,6 +34,48 @@ export default function NetflixScoreDashboard({ venueData, causeCodeData }: Netf
 
     return { avgUtilization, avgRxDesense, highUtilizationZones };
   }, [venueData.zones]);
+
+  const classifyZone = (score: number): Exclude<NFClassification, 'all'> => {
+    if (score >= 80) return 'good';
+    if (score >= 70) return 'fair';
+    return 'poor';
+  };
+
+  const [nfClass, setNfClass] = useState<NFClassification>('all');
+  const [search, setSearch] = useState('');
+  const [sortKey, setSortKey] = useState<RankSortKey>('netflixScore');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+  const displayedZones = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    let filtered = venueData.zones;
+    if (nfClass !== 'all') {
+      filtered = filtered.filter(z => classifyZone(z.netflixScore) === nfClass);
+    }
+    if (q) {
+      filtered = filtered.filter(z => z.name.toLowerCase().includes(q));
+    }
+    const dir = sortDir === 'asc' ? 1 : -1;
+    const toVal = (z: typeof venueData.zones[number]) => (
+      sortKey === 'name' ? z.name.toLowerCase() : (z as any)[sortKey]
+    );
+    return [...filtered].sort((a, b) => {
+      const av = toVal(a);
+      const bv = toVal(b);
+      if (av < bv) return -1 * dir;
+      if (av > bv) return 1 * dir;
+      return 0;
+    });
+  }, [venueData.zones, nfClass, search, sortKey, sortDir]);
+
+  const handleSort = (key: RankSortKey) => {
+    if (key === sortKey) {
+      setSortDir((d: 'asc' | 'desc') => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir(key === 'name' ? 'asc' : 'desc');
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -171,28 +216,60 @@ export default function NetflixScoreDashboard({ venueData, causeCodeData }: Netf
 
       <div className="bg-grafana-panel border border-grafana-border rounded p-6">
         <h3 className="text-lg font-semibold text-grafana-text mb-4">Zone Stability Rankings</h3>
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-grafana-text-secondary">Filter:</span>
+            {(['all','good','fair','poor'] as NFClassification[]).map(c => (
+              <button
+                key={c}
+                onClick={() => setNfClass(c)}
+                className={`px-2.5 py-1 text-xs rounded border transition-colors ${
+                  nfClass === c
+                    ? 'bg-grafana-hover border-grafana-border text-grafana-text'
+                    : 'bg-grafana-bg border-transparent text-grafana-text-secondary hover:border-grafana-border'
+                }`}
+                aria-pressed={nfClass === c}
+              >
+                {c === 'all' ? 'All' : c.charAt(0).toUpperCase() + c.slice(1)}
+              </button>
+            ))}
+          </div>
+          <input
+            type="text"
+            value={search}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
+            placeholder="Search zone"
+            className="px-2.5 py-1 bg-grafana-bg border border-grafana-border text-grafana-text text-xs rounded"
+          />
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-grafana-bg border-b border-grafana-border">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-grafana-text-secondary uppercase">Rank</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-grafana-text-secondary uppercase">Zone</th>
-                <th className="px-4 py-3 text-center text-xs font-semibold text-grafana-text-secondary uppercase">Netflix Score</th>
-                <th className="px-4 py-3 text-center text-xs font-semibold text-grafana-text-secondary uppercase">Utilization</th>
-                <th className="px-4 py-3 text-center text-xs font-semibold text-grafana-text-secondary uppercase">RxDesense</th>
+                <th onClick={() => handleSort('name')} className="px-4 py-3 text-left text-xs font-semibold text-grafana-text-secondary uppercase cursor-pointer select-none">
+                  Zone {sortKey === 'name' && (<span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>)}
+                </th>
+                <th onClick={() => handleSort('netflixScore')} className="px-4 py-3 text-center text-xs font-semibold text-grafana-text-secondary uppercase cursor-pointer select-none">
+                  Netflix Score {sortKey === 'netflixScore' && (<span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>)}
+                </th>
+                <th onClick={() => handleSort('utilization')} className="px-4 py-3 text-center text-xs font-semibold text-grafana-text-secondary uppercase cursor-pointer select-none">
+                  Utilization {sortKey === 'utilization' && (<span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>)}
+                </th>
+                <th onClick={() => handleSort('rxDesense')} className="px-4 py-3 text-center text-xs font-semibold text-grafana-text-secondary uppercase cursor-pointer select-none">
+                  RxDesense {sortKey === 'rxDesense' && (<span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>)}
+                </th>
                 <th className="px-4 py-3 text-center text-xs font-semibold text-grafana-text-secondary uppercase">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-grafana-border">
-              {[...venueData.zones]
-                .sort((a, b) => b.netflixScore - a.netflixScore)
-                .map((zone, idx) => (
+              {displayedZones.map((zone, idx) => (
                   <tr key={zone.id} className="hover:bg-grafana-hover transition-colors">
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center justify-center w-8 h-8 rounded-lg font-bold text-sm ${
                         idx < 3
                           ? 'bg-grafana-green/20 text-grafana-green'
-                          : idx >= venueData.zones.length - 3
+                          : idx >= displayedZones.length - 3
                           ? 'bg-grafana-red/20 text-grafana-red'
                           : 'bg-grafana-bg text-grafana-text-secondary'
                       }`}>
