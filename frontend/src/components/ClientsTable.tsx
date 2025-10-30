@@ -75,49 +75,28 @@ export default function ClientsTable({ clients, hosts, osDistribution }: Clients
     }
   };
 
+  const renderSortHeader = (key: ClientSortKey, label: string, align: 'left' | 'center' = 'left') => (
+    <th
+      onClick={() => handleSort(key)}
+      className={`px-4 py-3 text-${align} text-xs font-semibold text-grafana-text-secondary uppercase cursor-pointer select-none`}
+      aria-sort={sortKey === key ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+      role="columnheader"
+    >
+      <span className="inline-flex items-center gap-1">
+        <span>{label}</span>
+        <span className="inline-flex flex-col leading-none ml-1">
+          <span className={`${sortKey === key && sortDir === 'asc' ? 'text-grafana-text' : 'text-grafana-text-disabled'}`}>▲</span>
+          <span className={`${sortKey === key && sortDir === 'desc' ? 'text-grafana-text' : 'text-grafana-text-disabled'}`}>▼</span>
+        </span>
+      </span>
+    </th>
+  );
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-grafana-text">Clients</h2>
-        <div className="flex items-center gap-2">
-          <select className="bg-grafana-bg border border-grafana-border text-grafana-text text-sm px-3 py-2 rounded">
-            <option>Last report</option>
-            <option>Last 24h</option>
-            <option>Last 7d</option>
-            <option>Last 30d</option>
-          </select>
-          <select
-            value={wlanFilter}
-            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setWlanFilter(e.target.value)}
-            className="bg-grafana-bg border border-grafana-border text-grafana-text text-sm px-3 py-2 rounded"
-          >
-            <option value="all">All WLANs</option>
-            {wlanOptions.map((w: string) => (
-              <option key={w} value={w}>{w}</option>
-            ))}
-          </select>
-          <select
-            value={osFilter}
-            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setOsFilter(e.target.value)}
-            className="bg-grafana-bg border border-grafana-border text-grafana-text text-sm px-3 py-2 rounded"
-          >
-            <option value="all">All OS</option>
-            {osOptions.map((o: string) => (
-              <option key={o} value={o}>{o}</option>
-            ))}
-          </select>
-          <select
-            value={deviceTypeFilter}
-            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setDeviceTypeFilter(e.target.value)}
-            className="bg-grafana-bg border border-grafana-border text-grafana-text text-sm px-3 py-2 rounded"
-          >
-            <option value="all">All Devices</option>
-            {deviceTypeOptions.map((d: string) => (
-              <option key={d} value={d}>{d}</option>
-            ))}
-          </select>
-        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -301,27 +280,13 @@ export default function ClientsTable({ clients, hosts, osDistribution }: Clients
           <table className="w-full">
             <thead className="bg-grafana-bg border-b border-grafana-border">
               <tr>
-                <th onClick={() => handleSort('hostname')} className="px-4 py-3 text-left text-xs font-semibold text-grafana-text-secondary uppercase cursor-pointer select-none">
-                  Hostname {sortKey === 'hostname' && (<span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>)}
-                </th>
-                <th onClick={() => handleSort('modelName')} className="px-4 py-3 text-left text-xs font-semibold text-grafana-text-secondary uppercase cursor-pointer select-none">
-                  Model Name {sortKey === 'modelName' && (<span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>)}
-                </th>
-                <th onClick={() => handleSort('ipAddress')} className="px-4 py-3 text-left text-xs font-semibold text-grafana-text-secondary uppercase cursor-pointer select-none">
-                  IP Address {sortKey === 'ipAddress' && (<span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>)}
-                </th>
-                <th onClick={() => handleSort('macAddress')} className="px-4 py-3 text-left text-xs font-semibold text-grafana-text-secondary uppercase cursor-pointer select-none">
-                  MAC Address {sortKey === 'macAddress' && (<span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>)}
-                </th>
-                <th onClick={() => handleSort('wlan')} className="px-4 py-3 text-left text-xs font-semibold text-grafana-text-secondary uppercase cursor-pointer select-none">
-                  WLAN {sortKey === 'wlan' && (<span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>)}
-                </th>
-                <th onClick={() => handleSort('apName')} className="px-4 py-3 text-left text-xs font-semibold text-grafana-text-secondary uppercase cursor-pointer select-none">
-                  AP Name {sortKey === 'apName' && (<span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>)}
-                </th>
-                <th onClick={() => handleSort('apMac')} className="px-4 py-3 text-left text-xs font-semibold text-grafana-text-secondary uppercase cursor-pointer select-none">
-                  AP MAC {sortKey === 'apMac' && (<span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>)}
-                </th>
+                {renderSortHeader('hostname', 'Hostname')}
+                {renderSortHeader('modelName', 'Model Name')}
+                {renderSortHeader('ipAddress', 'IP Address')}
+                {renderSortHeader('macAddress', 'MAC Address')}
+                {renderSortHeader('wlan', 'WLAN')}
+                {renderSortHeader('apName', 'AP Name')}
+                {renderSortHeader('apMac', 'AP MAC')}
               </tr>
             </thead>
             <tbody className="divide-y divide-grafana-border">
