@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react';
 import { ClientData, HostUsageData, OSDistributionData } from '../types';
 
 interface ClientsTableProps {
@@ -6,12 +7,48 @@ interface ClientsTableProps {
   osDistribution: OSDistributionData[];
 }
 
+type ClientSortKey = 'hostname' | 'modelName' | 'ipAddress' | 'macAddress' | 'wlan' | 'apName' | 'apMac';
+
 export default function ClientsTable({ clients, hosts, osDistribution }: ClientsTableProps) {
   const formatDataUsage = (mb: number): string => {
     if (mb >= 1000) {
       return `${(mb / 1000).toFixed(1)}GB`;
     }
     return `${mb.toFixed(1)}MB`;
+  };
+
+  const [search, setSearch] = useState('');
+  const [sortKey, setSortKey] = useState<ClientSortKey>('hostname');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+
+  const visibleClients = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    let filtered = clients;
+    if (q) {
+      filtered = clients.filter((c) =>
+        [c.hostname, c.modelName, c.ipAddress, c.macAddress, c.wlan, c.apName, c.apMac]
+          .join(' ')
+          .toLowerCase()
+          .includes(q)
+      );
+    }
+    const dir = sortDir === 'asc' ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      const av = (a as any)[sortKey]?.toString().toLowerCase();
+      const bv = (b as any)[sortKey]?.toString().toLowerCase();
+      if (av < bv) return -1 * dir;
+      if (av > bv) return 1 * dir;
+      return 0;
+    });
+  }, [clients, search, sortKey, sortDir]);
+
+  const handleSort = (key: ClientSortKey) => {
+    if (key === sortKey) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
   };
 
   return (
@@ -170,6 +207,8 @@ export default function ClientsTable({ clients, hosts, osDistribution }: Clients
             <input
               type="text"
               placeholder="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
               className="px-3 py-1.5 bg-grafana-bg border border-grafana-border text-grafana-text text-sm rounded"
             />
           </div>
@@ -179,22 +218,31 @@ export default function ClientsTable({ clients, hosts, osDistribution }: Clients
           <table className="w-full">
             <thead className="bg-grafana-bg border-b border-grafana-border">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-grafana-text-secondary uppercase">Hostname</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-grafana-text-secondary uppercase">Model Name</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-grafana-text-secondary uppercase">IP Address</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-grafana-text-secondary uppercase">
-                  MAC Address
-                  <svg className="w-3 h-3 inline-block ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                  </svg>
+                <th onClick={() => handleSort('hostname')} className="px-4 py-3 text-left text-xs font-semibold text-grafana-text-secondary uppercase cursor-pointer select-none">
+                  Hostname {sortKey === 'hostname' && (<span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>)}
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-grafana-text-secondary uppercase">WLAN</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-grafana-text-secondary uppercase">AP Name</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-grafana-text-secondary uppercase">AP MAC</th>
+                <th onClick={() => handleSort('modelName')} className="px-4 py-3 text-left text-xs font-semibold text-grafana-text-secondary uppercase cursor-pointer select-none">
+                  Model Name {sortKey === 'modelName' && (<span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>)}
+                </th>
+                <th onClick={() => handleSort('ipAddress')} className="px-4 py-3 text-left text-xs font-semibold text-grafana-text-secondary uppercase cursor-pointer select-none">
+                  IP Address {sortKey === 'ipAddress' && (<span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>)}
+                </th>
+                <th onClick={() => handleSort('macAddress')} className="px-4 py-3 text-left text-xs font-semibold text-grafana-text-secondary uppercase cursor-pointer select-none">
+                  MAC Address {sortKey === 'macAddress' && (<span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>)}
+                </th>
+                <th onClick={() => handleSort('wlan')} className="px-4 py-3 text-left text-xs font-semibold text-grafana-text-secondary uppercase cursor-pointer select-none">
+                  WLAN {sortKey === 'wlan' && (<span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>)}
+                </th>
+                <th onClick={() => handleSort('apName')} className="px-4 py-3 text-left text-xs font-semibold text-grafana-text-secondary uppercase cursor-pointer select-none">
+                  AP Name {sortKey === 'apName' && (<span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>)}
+                </th>
+                <th onClick={() => handleSort('apMac')} className="px-4 py-3 text-left text-xs font-semibold text-grafana-text-secondary uppercase cursor-pointer select-none">
+                  AP MAC {sortKey === 'apMac' && (<span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>)}
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-grafana-border">
-              {clients.map((client, index) => (
+              {visibleClients.map((client, index) => (
                 <tr key={index} className="hover:bg-grafana-hover transition-colors">
                   <td className="px-4 py-3 text-sm text-grafana-text">{client.hostname.substring(0, 20)}...</td>
                   <td className="px-4 py-3 text-sm text-grafana-text-secondary">{client.modelName}</td>
