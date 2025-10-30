@@ -55,6 +55,29 @@ export default function ZoneTable({ zones, onZoneSelect }: ZoneTableProps) {
     }
   };
 
+  const renderSortHeader = (
+    key: SortKey,
+    label: string,
+    align: 'left' | 'center' = 'left',
+    icon?: React.ReactNode
+  ) => (
+    <th
+      onClick={() => handleSort(key)}
+      className={`px-6 py-4 text-${align} text-xs font-semibold text-grafana-text-secondary uppercase tracking-wider cursor-pointer select-none`}
+      aria-sort={sortKey === key ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+      role="columnheader"
+    >
+      <span className={`inline-flex items-center ${align === 'center' ? 'justify-center' : ''} gap-2`}>
+        {icon}
+        <span>{label}</span>
+        <span className="inline-flex flex-col leading-none ml-1">
+          <span className={`${sortKey === key && sortDir === 'asc' ? 'text-grafana-text' : 'text-grafana-text-disabled'}`}>▲</span>
+          <span className={`${sortKey === key && sortDir === 'desc' ? 'text-grafana-text' : 'text-grafana-text-disabled'}`}>▼</span>
+        </span>
+      </span>
+    </th>
+  );
+
   return (
     <div className="bg-grafana-panel border border-grafana-border rounded overflow-hidden">
       <div className="p-3 border-b border-grafana-border flex items-center gap-2">
@@ -78,43 +101,13 @@ export default function ZoneTable({ zones, onZoneSelect }: ZoneTableProps) {
         <table className="w-full">
           <thead className="bg-grafana-bg border-b border-grafana-border">
             <tr>
-              <th onClick={() => handleSort('name')} className="px-6 py-4 text-left text-xs font-semibold text-grafana-text-secondary uppercase tracking-wider cursor-pointer select-none">
-                Zone Name {sortKey === 'name' && (<span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>)}
-              </th>
-              <th onClick={() => handleSort('connectedAPs')} className="px-6 py-4 text-center text-xs font-semibold text-grafana-text-secondary uppercase tracking-wider cursor-pointer select-none">
-                <div className="flex items-center justify-center gap-2">
-                  <Wifi className="w-4 h-4" />
-                  APs
-                </div>
-                {sortKey === 'connectedAPs' && (<span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>)}
-              </th>
-              <th onClick={() => handleSort('clients')} className="px-6 py-4 text-center text-xs font-semibold text-grafana-text-secondary uppercase tracking-wider cursor-pointer select-none">
-                <div className="flex items-center justify-center gap-2">
-                  <Users className="w-4 h-4" />
-                  Clients
-                </div>
-                {sortKey === 'clients' && (<span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>)}
-              </th>
-              <th onClick={() => handleSort('clientsPerAP')} className="px-6 py-4 text-center text-xs font-semibold text-grafana-text-secondary uppercase tracking-wider cursor-pointer select-none">
-                Clients/AP {sortKey === 'clientsPerAP' && (<span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>)}
-              </th>
-              <th onClick={() => handleSort('apAvailability')} className="px-6 py-4 text-center text-xs font-semibold text-grafana-text-secondary uppercase tracking-wider cursor-pointer select-none">
-                <div className="flex items-center justify-center gap-2">
-                  <Activity className="w-4 h-4" />
-                  Availability
-                </div>
-                {sortKey === 'apAvailability' && (<span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>)}
-              </th>
-              <th onClick={() => handleSort('experienceScore')} className="px-6 py-4 text-center text-xs font-semibold text-grafana-text-secondary uppercase tracking-wider cursor-pointer select-none">
-                <div className="flex items-center justify-center gap-2">
-                  <TrendingUp className="w-4 h-4" />
-                  Experience
-                </div>
-                {sortKey === 'experienceScore' && (<span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>)}
-              </th>
-              <th onClick={() => handleSort('netflixScore')} className="px-6 py-4 text-center text-xs font-semibold text-grafana-text-secondary uppercase tracking-wider cursor-pointer select-none">
-                Netflix Score {sortKey === 'netflixScore' && (<span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>)}
-              </th>
+              {renderSortHeader('name', 'Zone Name', 'left')}
+              {renderSortHeader('connectedAPs', 'APs', 'center', <Wifi className="w-4 h-4" />)}
+              {renderSortHeader('clients', 'Clients', 'center', <Users className="w-4 h-4" />)}
+              {renderSortHeader('clientsPerAP', 'Clients/AP', 'center')}
+              {renderSortHeader('apAvailability', 'Availability', 'center', <Activity className="w-4 h-4" />)}
+              {renderSortHeader('experienceScore', 'Experience', 'center', <TrendingUp className="w-4 h-4" />)}
+              {renderSortHeader('netflixScore', 'Netflix Score', 'center')}
             </tr>
           </thead>
           <tbody className="divide-y divide-grafana-border">

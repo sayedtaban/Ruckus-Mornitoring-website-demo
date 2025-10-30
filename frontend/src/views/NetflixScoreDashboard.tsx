@@ -77,6 +77,23 @@ export default function NetflixScoreDashboard({ venueData, causeCodeData }: Netf
     }
   };
 
+  const renderSortHeader = (key: RankSortKey, label: string, align: 'left' | 'center' = 'left') => (
+    <th
+      onClick={() => handleSort(key)}
+      className={`px-4 py-3 text-${align} text-xs font-semibold text-grafana-text-secondary uppercase cursor-pointer select-none`}
+      aria-sort={sortKey === key ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+      role="columnheader"
+    >
+      <span className="inline-flex items-center gap-1">
+        <span>{label}</span>
+        <span className="inline-flex flex-col leading-none ml-1">
+          <span className={`${sortKey === key && sortDir === 'asc' ? 'text-grafana-text' : 'text-grafana-text-disabled'}`}>▲</span>
+          <span className={`${sortKey === key && sortDir === 'desc' ? 'text-grafana-text' : 'text-grafana-text-disabled'}`}>▼</span>
+        </span>
+      </span>
+    </th>
+  );
+
   return (
     <div className="space-y-6">
       <div>
@@ -247,18 +264,10 @@ export default function NetflixScoreDashboard({ venueData, causeCodeData }: Netf
             <thead className="bg-grafana-bg border-b border-grafana-border">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-grafana-text-secondary uppercase">Rank</th>
-                <th onClick={() => handleSort('name')} className="px-4 py-3 text-left text-xs font-semibold text-grafana-text-secondary uppercase cursor-pointer select-none">
-                  Zone {sortKey === 'name' && (<span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>)}
-                </th>
-                <th onClick={() => handleSort('netflixScore')} className="px-4 py-3 text-center text-xs font-semibold text-grafana-text-secondary uppercase cursor-pointer select-none">
-                  Netflix Score {sortKey === 'netflixScore' && (<span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>)}
-                </th>
-                <th onClick={() => handleSort('utilization')} className="px-4 py-3 text-center text-xs font-semibold text-grafana-text-secondary uppercase cursor-pointer select-none">
-                  Utilization {sortKey === 'utilization' && (<span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>)}
-                </th>
-                <th onClick={() => handleSort('rxDesense')} className="px-4 py-3 text-center text-xs font-semibold text-grafana-text-secondary uppercase cursor-pointer select-none">
-                  RxDesense {sortKey === 'rxDesense' && (<span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>)}
-                </th>
+                {renderSortHeader('name', 'Zone', 'left')}
+                {renderSortHeader('netflixScore', 'Netflix Score', 'center')}
+                {renderSortHeader('utilization', 'Utilization', 'center')}
+                {renderSortHeader('rxDesense', 'RxDesense', 'center')}
                 <th className="px-4 py-3 text-center text-xs font-semibold text-grafana-text-secondary uppercase">Status</th>
               </tr>
             </thead>
