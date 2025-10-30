@@ -235,3 +235,4 @@ export default function AnomalyDashboard({ venueData, anomalies }: AnomalyDashbo
     </div>
   );
 }
+
