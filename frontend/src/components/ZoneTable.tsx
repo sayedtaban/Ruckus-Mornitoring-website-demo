@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Zone } from '../types';
 import { Wifi, Users, Activity, TrendingUp } from 'lucide-react';
 
@@ -118,7 +118,7 @@ export default function ZoneTable({ zones, onZoneSelect }: ZoneTableProps) {
             </tr>
           </thead>
           <tbody className="divide-y divide-grafana-border">
-            {displayedZones.map((zone) => (
+            {displayedZones.map((zone: Zone) => (
               <tr
                 key={zone.id}
                 onClick={() => onZoneSelect?.(zone)}

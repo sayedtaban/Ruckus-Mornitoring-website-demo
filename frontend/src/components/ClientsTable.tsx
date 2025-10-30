@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { ClientData, HostUsageData, OSDistributionData } from '../types';
 
 interface ClientsTableProps {
@@ -44,7 +44,7 @@ export default function ClientsTable({ clients, hosts, osDistribution }: Clients
 
   const handleSort = (key: ClientSortKey) => {
     if (key === sortKey) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+      setSortDir((d: 'asc' | 'desc') => (d === 'asc' ? 'desc' : 'asc'));
     } else {
       setSortKey(key);
       setSortDir('asc');
@@ -208,7 +208,7 @@ export default function ClientsTable({ clients, hosts, osDistribution }: Clients
               type="text"
               placeholder="search"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
               className="px-3 py-1.5 bg-grafana-bg border border-grafana-border text-grafana-text text-sm rounded"
             />
           </div>
@@ -242,7 +242,7 @@ export default function ClientsTable({ clients, hosts, osDistribution }: Clients
               </tr>
             </thead>
             <tbody className="divide-y divide-grafana-border">
-              {visibleClients.map((client, index) => (
+              {visibleClients.map((client: ClientData, index: number) => (
                 <tr key={index} className="hover:bg-grafana-hover transition-colors">
                   <td className="px-4 py-3 text-sm text-grafana-text">{client.hostname.substring(0, 20)}...</td>
                   <td className="px-4 py-3 text-sm text-grafana-text-secondary">{client.modelName}</td>
