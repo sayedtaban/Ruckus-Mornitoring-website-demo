@@ -50,6 +50,8 @@ export interface VenueData {
   totalZones: number;
   totalAPs: number;
   totalClients: number;
+  totalClusters?: number;
+  totalSwitches?: number;
   avgExperienceScore: number;
   slaCompliance: number;
   zones: Zone[];

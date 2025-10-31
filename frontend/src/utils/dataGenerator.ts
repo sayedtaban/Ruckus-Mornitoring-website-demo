@@ -156,16 +156,16 @@ function generateZone(name: string, index: number): Zone {
 export function generateVenueData(): VenueData {
   const zones = zoneNames.map((name, index) => generateZone(name, index));
 
-  const totalAPs = zones.reduce((sum, zone) => sum + zone.totalAPs, 0);
-  const totalClients = zones.reduce((sum, zone) => sum + zone.clients, 0);
   const avgExperienceScore = zones.reduce((sum, zone) => sum + zone.experienceScore, 0) / zones.length;
   const slaCompliance = zones.filter(z => z.apAvailability >= 95).length / zones.length * 100;
 
   return {
     name: 'GA29532-P - Signal House',
     totalZones: zones.length,
-    totalAPs,
-    totalClients,
+    totalAPs: 4597,
+    totalClients: 6875,
+    totalClusters: 2,
+    totalSwitches: 100,
     avgExperienceScore: parseFloat(avgExperienceScore.toFixed(1)),
     slaCompliance: parseFloat(slaCompliance.toFixed(1)),
     zones
@@ -444,39 +444,94 @@ const osList = [
 ];
 
 function generateClientHostname(): string {
-  const types = ['iPhone', 'Samsung', 'DESKTOP-', 'Harry-s-', 'AZULFD'];
+  const types = [
+    'android-', 'TIVO-', '00:16:78:0b:9c', 'wlan0', '00:1d:43:10:e3', 
+    'BRW', '00:24:a3:a6:18:fa', '001003', 'android-c6b9e', 
+    'WNS010-', 'HS', 'DESKTOP-', 'iPhone', 'Samsung', 'AZULFD', 
+    'Harry-s-', 'MacBook', 'Surface', 'ThinkPad'
+  ];
   const type = types[Math.floor(Math.random() * types.length)];
   
+  if (type === 'android-') {
+    return `${type}${Math.random().toString(36).substring(7)}`;
+  }
+  if (type === 'TIVO-') {
+    return `${type}${Math.floor(Math.random() * 9000000) + 1000000}`;
+  }
+  if (type === 'BRW') {
+    return `${type}${Math.random().toString(36).substring(2, 12).toUpperCase()}`;
+  }
+  if (type === 'HS') {
+    return `${type}${Math.floor(Math.random() * 200) + 100}`;
+  }
+  if (type.includes('DESKTOP-')) {
+    return `${type}${Math.random().toString(36).substring(7).toUpperCase()}`;
+  }
+  if (type === 'WNS010-') {
+    return `${type}${['FUBO', 'NETFLIX', 'HULU'][Math.floor(Math.random() * 3)]}`;
+  }
   if (type.includes('iPhone') || type.includes('Samsung')) {
     return `${type}${Math.floor(Math.random() * 10)}`;
   }
+  if (type.includes('MacBook') || type.includes('Surface') || type.includes('ThinkPad')) {
+    return `${type}-${Math.random().toString(36).substring(7).toUpperCase()}`;
+  }
   
-  return `${type}${Math.random().toString(36).substring(7).toUpperCase()}`;
+  return type;
 }
 
 function generateOSFromDevice(hostname: string): string {
-  if (hostname.includes('iPhone')) return 'iOS';
-  if (hostname.includes('Samsung') || hostname.includes('Galaxy')) return 'Android';
-  if (hostname.includes('DESKTOP-')) return 'Windows';
-  if (hostname.includes('MacBook') || hostname.includes('Mac-')) return 'macOS';
-  if (hostname.includes('Surface') || hostname.includes('ThinkPad')) return 'Windows';
-  if (hostname.includes('Chromebook')) return 'Chrome OS';
+  const osMap: { [key: string]: string } = {
+    'android-': 'Android',
+    'Android': 'Android',
+    'iPhone': 'iOS',
+    'Samsung': 'Android',
+    'Galaxy': 'Android',
+    'DESKTOP-': 'Windows (10)',
+    'MacBook': 'macOS',
+    'Mac-': 'macOS',
+    'Surface': 'Windows (10)',
+    'ThinkPad': 'Windows (10)',
+    'Chromebook': 'Chrome OS',
+    'TIVO-': 'Debian',
+    'HS': 'Unknown',
+    'wlan0': 'Unknown',
+    'WNS010-': 'Amazon Ki...',
+    'BRW': 'Brother Pri...'
+  };
+  
+  for (const key in osMap) {
+    if (hostname.includes(key)) {
+      return osMap[key];
+    }
+  }
+  
   return 'Unknown';
 }
 
 export function generateClientData(count: number): ClientData[] {
   const apList = [
+    { name: 'ALMC - Unit6508', mac: '80:BC:37:1E:F1:A0' },
+    { name: 'Common_AP151', mac: '2C:AB:46:13:BB:10' },
+    { name: 'b6-u309', mac: 'D0:4F:58:37:91:40' },
+    { name: 'u1309', mac: 'D0:4F:58:38:81:60' },
+    { name: 'b14-u208', mac: 'D0:4F:58:38:36:00' },
+    { name: 'Bradford_u501', mac: '80:BC:37:1E:6B:50' },
+    { name: 'Patriot - Unit3...', mac: '34:15:93:1B:84:40' },
+    { name: 'b6-u204', mac: 'C0:C7:0A:1B:32:30' },
+    { name: 'Patio - Unit230...', mac: '34:15:93:1B:43:B0' },
+    { name: 'President - Uni...', mac: '34:15:93:1B:44:50' },
+    { name: 'b13-u111', mac: 'C0:C7:0A:1B:AA:70' },
+    { name: 'Condo1_Main...', mac: 'C8:A6:08:0B:E5:D0' },
+    { name: 'b3-u208', mac: '80:BC:37:1F:4F:70' },
+    { name: 'IL Phone Roo...', mac: 'C0:C7:0A:1B:64:90' },
     { name: 'Commons_AP', mac: '2C:AB:46:08:B4:10' },
     { name: 'Eastwood_u486', mac: '34:15:93:1B:78:42' },
     { name: 'u-C4', mac: '34:15:93:1B:5E:8A' },
-    { name: 'AL_Room 22', mac: 'B0:7C:51:36:0F:92' },
-    { name: 'AP144', mac: '2C:AB:46:08:9E:11' },
-    { name: 'Main_Hall', mac: '6A:3D:1C:2F:4E:8D' },
-    { name: 'Wing_B', mac: '9F:E2:4D:1A:3C:7B' },
-    { name: 'Floor_2_North', mac: '5C:8A:4E:1F:3D:9A' }
+    { name: 'AL_Room 22', mac: 'B0:7C:51:36:0F:92' }
   ];
 
-  const wlanList = ['LSS VOICE', 'LSS DATA', 'LSS GUEST'];
+  const wlanList = ['LSSGuest', '@Town...', '@Signa...', '@Conc...', '@PierSi...', '@Breez...', 'LSS VOICE', 'LSS DATA', 'LSS GUEST'];
 
   const clients: ClientData[] = [];
   
@@ -486,17 +541,38 @@ export function generateClientData(count: number): ClientData[] {
     const wlan = wlanList[Math.floor(Math.random() * wlanList.length)];
     const os = generateOSFromDevice(hostname);
     
+    // Generate IP address in various ranges like the image
+    const ipRanges = [
+      () => `10.${Math.floor(Math.random() * 3) + 160}.${Math.floor(Math.random() * 50) + 50}.${Math.floor(Math.random() * 100) + 100} /::`,
+      () => `172.16.${Math.floor(Math.random() * 250) + 1}.${Math.floor(Math.random() * 250) + 1} /::`,
+      () => `172.17.${Math.floor(Math.random() * 250) + 1}.${Math.floor(Math.random() * 250) + 1} /::`,
+      () => `172.24.${Math.floor(Math.random() * 10)}.${Math.floor(Math.random() * 250) + 1} /::`,
+      () => `10.165.241.${Math.floor(Math.random() * 100) + 100} /::`,
+      () => `10.163.240.${Math.floor(Math.random() * 100) + 50} /::`
+    ];
+    const ipAddress = ipRanges[Math.floor(Math.random() * ipRanges.length)]();
+    
+    // Determine device type based on hostname
+    let deviceType: 'phone' | 'laptop' | 'tablet' | 'other' = 'other';
+    if (hostname.includes('iPhone') || hostname.includes('Samsung') || hostname.includes('android-')) {
+      deviceType = 'phone';
+    } else if (hostname.includes('DESKTOP-') || hostname.includes('MacBook') || hostname.includes('Surface')) {
+      deviceType = 'laptop';
+    } else if (hostname.includes('TIVO-') || hostname.includes('WNS010-') || hostname.includes('BRW')) {
+      deviceType = 'other';
+    }
+    
     const client: ClientData = {
       hostname,
-      modelName: 'Unknown',
-      ipAddress: `10.${Math.floor(Math.random() * 3) + 160}.${Math.floor(Math.random() * 10) + 15}.${Math.floor(Math.random() * 100) + 100} /::`,
+      modelName: os === 'Unknown' ? 'Generic_A...' : os,
+      ipAddress,
       macAddress: generateMACAddress(),
       wlan,
       apName: ap.name,
       apMac: ap.mac,
       dataUsage: generateRandomValue(100, 2000),
       os,
-      deviceType: hostname.includes('iPhone') || hostname.includes('Samsung') ? 'phone' : 'laptop'
+      deviceType
     };
     
     clients.push(client);

@@ -4,7 +4,6 @@ import MetricCard from '../components/MetricCard';
 import LineChart from '../components/LineChart';
 import ZoneTable from '../components/ZoneTable';
 import APTable from '../components/APTable';
-import PieChart from '../components/PieChart';
 import LoadChart from '../components/LoadChart';
 import { generateTimeSeriesData } from '../utils/dataGenerator';
 
@@ -28,38 +27,28 @@ export default function VenueDashboard({ venueData, onZoneSelect, loadData }: Ve
     };
   }, [worstZones]);
 
-  // Generate summary statistics
-  const summaryStats = useMemo(() => {
-    const laptopPercentage = 29;
-    const phonePercentage = 24;
-    const otherPercentage = 100 - laptopPercentage - phonePercentage;
-
-    const onlineAPs = venueData.zones.reduce((sum, z) => sum + z.connectedAPs, 0);
-    const offlineAPs = venueData.zones.reduce((sum, z) => sum + z.disconnectedAPs, 0);
-    const totalAPs = onlineAPs + offlineAPs;
-    const onlinePercentage = (onlineAPs / totalAPs) * 100;
-    const offlinePercentage = (offlineAPs / totalAPs) * 100;
-
-    const ghz5Percentage = 56;
-    const ghz24Percentage = 37;
-
-    return {
-      laptops: laptopPercentage,
-      phones: phonePercentage,
-      other: otherPercentage,
-      onlineAPs: onlinePercentage,
-      offlineAPs: offlinePercentage,
-      ghz5: ghz5Percentage,
-      ghz24: ghz24Percentage
-    };
-  }, [venueData]);
-
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
+          title="Total Clusters"
+          value={venueData.totalClusters || 0}
+          trendValue="0.00%"
+          subtitle="vs previous 7 days"
+          trend="stable"
+        />
+
+        <MetricCard
           title="Total Access Points"
-          value={venueData.totalAPs}
+          value={venueData.totalAPs.toLocaleString()}
+          trendValue="0.00%"
+          subtitle="vs previous 7 days"
+          trend="stable"
+        />
+
+        <MetricCard
+          title="Total Switches"
+          value={venueData.totalSwitches || 0}
           trendValue="0.00%"
           subtitle="vs previous 7 days"
           trend="stable"
@@ -73,7 +62,9 @@ export default function VenueDashboard({ venueData, onZoneSelect, loadData }: Ve
           trend="down"
           status="error"
         />
+      </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <MetricCard
           title="Avg Experience Score"
           value={venueData.avgExperienceScore.toFixed(1)}
