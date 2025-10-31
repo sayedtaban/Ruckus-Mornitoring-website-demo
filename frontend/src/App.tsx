@@ -18,6 +18,7 @@ import VenueDashboard from './views/VenueDashboard';
 import NetflixScoreDashboard from './views/NetflixScoreDashboard';
 import AnomalyDashboard from './views/AnomalyDashboard';
 import ClientsTable from './components/ClientsTable';
+import ChatWidget from './components/ChatWidget';
 import { venueApi, causeCodesApi, anomaliesApi, clientsApi, hostsApi, osDistributionApi, loadApi } from './lib/api';
 
 type DashboardView = 'zone' | 'venue' | 'netflix' | 'anomaly' | 'clients' | 'profile';
@@ -290,6 +291,7 @@ function Dashboard() {
           )}
         </main>
       </div>
+      <ChatWidget />
     </div>
   );
 }
