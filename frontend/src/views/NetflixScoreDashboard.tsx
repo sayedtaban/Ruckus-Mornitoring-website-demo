@@ -10,8 +10,9 @@ interface NetflixScoreDashboardProps {
   causeCodeData: CauseCodeData[];
 }
 
-type RankSortKey = 'name' | 'netflixScore' | 'utilization' | 'rxDesense';
+type RankSortKey = 'name' | 'netflixScore' | 'utilization' | 'rxDesense' | 'cc25Risk';
 type NFClassification = 'all' | 'good' | 'fair' | 'poor';
+type CC25Filter = 'all' | 'high-risk' | 'critical';
 
 export default function NetflixScoreDashboard({ venueData, causeCodeData }: NetflixScoreDashboardProps) {
   const topZones = useMemo(() => {
@@ -42,23 +43,60 @@ export default function NetflixScoreDashboard({ venueData, causeCodeData }: Netf
   };
 
   const [nfClass, setNfClass] = useState<NFClassification>('all');
+  const [cc25Filter, setCc25Filter] = useState<CC25Filter>('all');
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<RankSortKey>('netflixScore');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
+  // Calculate CC25 Risk score per zone (combines Netflix score, utilization, RxDesense)
+  const zonesWithRisk = useMemo(() => {
+    return venueData.zones.map(zone => {
+      // Risk score: lower Netflix score + higher utilization + higher RxDesense = higher risk
+      const cc25Risk = (100 - zone.netflixScore) * 0.5 + zone.utilization * 0.3 + zone.rxDesense * 0.2;
+      return { ...zone, cc25Risk };
+    });
+  }, [venueData.zones]);
+
+  // Venue performance summary
+  const venuePerformance = useMemo(() => {
+    const highRiskZones = zonesWithRisk.filter((z: typeof zonesWithRisk[number]) => z.cc25Risk > 50);
+    const criticalZones = zonesWithRisk.filter((z: typeof zonesWithRisk[number]) => z.netflixScore < 70 && (z.utilization > 70 || z.rxDesense > 10));
+    const worstZones = [...zonesWithRisk].sort((a: typeof zonesWithRisk[number], b: typeof zonesWithRisk[number]) => a.netflixScore - b.netflixScore).slice(0, 3);
+    
+    return {
+      highRiskZones: highRiskZones.length,
+      criticalZones: criticalZones.length,
+      worstZones: worstZones.map((z: typeof zonesWithRisk[number]) => ({ name: z.name, score: z.netflixScore })),
+      avgRisk: zonesWithRisk.reduce((sum: number, z: typeof zonesWithRisk[number]) => sum + z.cc25Risk, 0) / zonesWithRisk.length
+    };
+  }, [zonesWithRisk]);
+
   const displayedZones = useMemo(() => {
     const q = search.trim().toLowerCase();
-    let filtered = venueData.zones;
+    let filtered = zonesWithRisk;
+    
     if (nfClass !== 'all') {
-      filtered = filtered.filter(z => classifyZone(z.netflixScore) === nfClass);
+      filtered = filtered.filter((z: typeof zonesWithRisk[number]) => classifyZone(z.netflixScore) === nfClass);
     }
+    
+    // CC25 Risk Filter
+    if (cc25Filter === 'high-risk') {
+      filtered = filtered.filter((z: typeof zonesWithRisk[number]) => z.cc25Risk > 50 || z.netflixScore < 70);
+    } else if (cc25Filter === 'critical') {
+      filtered = filtered.filter((z: typeof zonesWithRisk[number]) => z.netflixScore < 70 && (z.utilization > 70 || z.rxDesense > 10));
+    }
+    
     if (q) {
-      filtered = filtered.filter(z => z.name.toLowerCase().includes(q));
+      filtered = filtered.filter((z: typeof zonesWithRisk[number]) => z.name.toLowerCase().includes(q));
     }
+    
     const dir = sortDir === 'asc' ? 1 : -1;
-    const toVal = (z: typeof venueData.zones[number]) => (
-      sortKey === 'name' ? z.name.toLowerCase() : (z as any)[sortKey]
-    );
+    const toVal = (z: typeof filtered[number]) => {
+      if (sortKey === 'name') return z.name.toLowerCase();
+      if (sortKey === 'cc25Risk') return z.cc25Risk;
+      return (z as any)[sortKey];
+    };
+    
     return [...filtered].sort((a, b) => {
       const av = toVal(a);
       const bv = toVal(b);
@@ -66,7 +104,7 @@ export default function NetflixScoreDashboard({ venueData, causeCodeData }: Netf
       if (av > bv) return 1 * dir;
       return 0;
     });
-  }, [venueData.zones, nfClass, search, sortKey, sortDir]);
+  }, [zonesWithRisk, nfClass, cc25Filter, search, sortKey, sortDir]);
 
   const handleSort = (key: RankSortKey) => {
     if (key === sortKey) {
@@ -171,6 +209,46 @@ export default function NetflixScoreDashboard({ venueData, causeCodeData }: Netf
         </div>
       </div>
 
+      {/* Venue Performance Summary */}
+      <div className="bg-grafana-panel border border-grafana-border rounded p-6">
+        <h3 className="text-lg font-semibold text-grafana-text mb-4">Venue Performance Summary</h3>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="p-4 bg-grafana-red/10 border border-grafana-red/30 rounded-lg">
+            <p className="text-xs text-grafana-text-secondary mb-1">High CC25 Risk Zones</p>
+            <p className="text-3xl font-bold text-grafana-red">{venuePerformance.highRiskZones}</p>
+            <p className="text-xs text-grafana-text-secondary mt-1">Zones with risk score &gt; 50</p>
+          </div>
+          <div className="p-4 bg-grafana-red/10 border border-grafana-red/30 rounded-lg">
+            <p className="text-xs text-grafana-text-secondary mb-1">Critical Zones</p>
+            <p className="text-3xl font-bold text-grafana-red">{venuePerformance.criticalZones}</p>
+            <p className="text-xs text-grafana-text-secondary mt-1">Low score + high utilization/RxDesense</p>
+          </div>
+          <div className="p-4 bg-grafana-bg border border-grafana-border rounded-lg">
+            <p className="text-xs text-grafana-text-secondary mb-1">Avg CC25 Risk Score</p>
+            <p className="text-3xl font-bold text-grafana-text">{venuePerformance.avgRisk.toFixed(1)}</p>
+            <p className="text-xs text-grafana-text-secondary mt-1">Lower is better</p>
+          </div>
+          <div className="p-4 bg-grafana-bg border border-grafana-border rounded-lg">
+            <p className="text-xs text-grafana-text-secondary mb-2">Worst Performing Zones</p>
+            <div className="space-y-1.5">
+              {venuePerformance.worstZones.map((zone: { name: string; score: number }, idx: number) => (
+                <div key={idx} className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <span className={`w-4 h-4 rounded-full flex items-center justify-center text-xs font-bold ${
+                      idx === 0 ? 'bg-grafana-red/20 text-grafana-red' : 'bg-grafana-yellow/20 text-grafana-yellow'
+                    }`}>
+                      {idx + 1}
+                    </span>
+                    <span className="text-grafana-text truncate">{zone.name.substring(0, 20)}</span>
+                  </div>
+                  <span className="text-grafana-text-secondary font-semibold">{zone.score.toFixed(0)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
       <LineChart
         data={netflixTimeSeriesData}
         title="Netflix Stability Score - Top 3 Best Performing Zones (24 Hours)"
@@ -233,8 +311,8 @@ export default function NetflixScoreDashboard({ venueData, causeCodeData }: Netf
 
       <div className="bg-grafana-panel border border-grafana-border rounded p-6">
         <h3 className="text-lg font-semibold text-grafana-text mb-4">Zone Stability Rankings</h3>
-        <div className="flex items-center justify-between gap-3 mb-3">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs text-grafana-text-secondary">Filter:</span>
             {(['all','good','fair','poor'] as NFClassification[]).map(c => (
               <button
@@ -248,6 +326,21 @@ export default function NetflixScoreDashboard({ venueData, causeCodeData }: Netf
                 aria-pressed={nfClass === c}
               >
                 {c === 'all' ? 'All' : c.charAt(0).toUpperCase() + c.slice(1)}
+              </button>
+            ))}
+            <span className="text-xs text-grafana-text-secondary ml-2">CC25 Risk:</span>
+            {(['all', 'high-risk', 'critical'] as CC25Filter[]).map(f => (
+              <button
+                key={f}
+                onClick={() => setCc25Filter(f)}
+                className={`px-2.5 py-1 text-xs rounded border transition-colors ${
+                  cc25Filter === f
+                    ? 'bg-grafana-red/20 border-grafana-red text-grafana-red'
+                    : 'bg-grafana-bg border-transparent text-grafana-text-secondary hover:border-grafana-border'
+                }`}
+                aria-pressed={cc25Filter === f}
+              >
+                {f === 'all' ? 'All' : f === 'high-risk' ? 'High Risk' : 'Critical'}
               </button>
             ))}
           </div>
@@ -268,11 +361,12 @@ export default function NetflixScoreDashboard({ venueData, causeCodeData }: Netf
                 {renderSortHeader('netflixScore', 'Netflix Score', 'center')}
                 {renderSortHeader('utilization', 'Utilization', 'center')}
                 {renderSortHeader('rxDesense', 'RxDesense', 'center')}
+                {renderSortHeader('cc25Risk', 'CC25 Risk', 'center')}
                 <th className="px-4 py-3 text-center text-xs font-semibold text-grafana-text-secondary uppercase">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-grafana-border">
-              {displayedZones.map((zone, idx) => (
+              {displayedZones.map((zone: typeof zonesWithRisk[number], idx: number) => (
                   <tr key={zone.id} className="hover:bg-grafana-hover transition-colors">
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center justify-center w-8 h-8 rounded-lg font-bold text-sm ${
@@ -297,6 +391,17 @@ export default function NetflixScoreDashboard({ venueData, causeCodeData }: Netf
                     <td className="px-4 py-3 text-center">
                       <span className={zone.rxDesense > 10 ? 'text-grafana-red font-semibold' : 'text-grafana-text-secondary'}>
                         {zone.rxDesense.toFixed(1)}%
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${
+                        zone.cc25Risk > 60
+                          ? 'bg-grafana-red/20 text-grafana-red'
+                          : zone.cc25Risk > 40
+                          ? 'bg-grafana-yellow/20 text-grafana-yellow'
+                          : 'bg-grafana-green/20 text-grafana-green'
+                      }`}>
+                        {zone.cc25Risk.toFixed(0)}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-center">
