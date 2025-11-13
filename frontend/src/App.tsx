@@ -57,14 +57,12 @@ function Dashboard() {
   const [osDistribution, setOsDistribution] = useState<OSDistributionData[]>([]);
   const [loadData, setLoadData] = useState<BandLoadData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   // Fetch data from API
   useEffect(() => {
     async function fetchData() {
       try {
         setLoading(true);
-        setError(null);
 
         // Fetch all data in parallel
         const [
@@ -102,7 +100,6 @@ function Dashboard() {
         }
       } catch (err) {
         console.error('Error fetching data:', err);
-        setError('Failed to load data from backend API.');
         setVenueData(null);
         setCauseCodeData([]);
         setAnomalies([]);
@@ -177,16 +174,8 @@ function Dashboard() {
     );
   }
 
-  // Show error banner if there was an error
-  const errorBanner = error ? (
-    <div className="bg-yellow-900/20 border border-yellow-700 text-yellow-200 px-4 py-2 text-sm">
-      {error}
-    </div>
-  ) : null;
-
   return (
     <div className="min-h-screen bg-grafana-bg text-grafana-text flex flex-col">
-      {errorBanner}
       <aside className="w-14 bg-grafana-panel border-r border-grafana-border flex-shrink-0 fixed h-full overflow-y-auto z-50">
         <div className="flex flex-col items-center py-4 space-y-2">
           <button className="w-10 h-10 flex items-center justify-center hover:bg-grafana-hover rounded transition-colors">
@@ -249,7 +238,7 @@ function Dashboard() {
                   {activeView === 'profile' && 'User Profile'}
                 </h1>
 
-                {activeView === 'zone' && venueData?.zones?.length > 0 && (
+                {activeView === 'zone' && venueData?.zones && venueData.zones.length > 0 && (
                   <select
                     value={selectedZoneId || ''}
                     onChange={(e) => setSelectedZoneId(e.target.value)}

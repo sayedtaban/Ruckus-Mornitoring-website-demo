@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.api.deps import get_metrics_service
 from app.schemas.host_usage import HostUsage
@@ -19,6 +19,12 @@ async def get_host_usage(
     ),
     service: WiFiMetricsService = Depends(get_metrics_service),
 ) -> list[HostUsage]:
-    return await service.get_hosts(limit=limit, sort=sort)
+    try:
+        return await service.get_hosts(limit=limit, sort=sort)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching host usage data: {str(e)}",
+        )
 
 

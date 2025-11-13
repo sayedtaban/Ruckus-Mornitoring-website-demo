@@ -225,13 +225,7 @@ export default function VenueDashboard({ venueData, onZoneSelect, loadData }: Ve
               No experience score trend data available.
             </div>
           )}
-          {hasLoadData ? (
-            <LoadChart data={loadData} title="Load" timeRange="" />
-          ) : (
-            <div className="bg-grafana-bg border border-dashed border-grafana-border rounded flex items-center justify-center text-xs text-grafana-text-secondary">
-              No load data available.
-            </div>
-          )}
+          
         </div>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

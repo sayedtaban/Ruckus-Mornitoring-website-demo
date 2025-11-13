@@ -1,6 +1,12 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { User } from '@supabase/supabase-js';
-import { supabase, convertEmailToUsername } from '../lib/supabase';
+import { authApi } from '../lib/api';
+
+interface User {
+  id: number;
+  username: string;
+  email: string;
+  is_active: boolean;
+}
 
 interface AuthContextType {
   user: User | null;
@@ -18,23 +24,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
-
     const initAuth = async () => {
       try {
-        const timeoutPromise = new Promise((_, reject) => {
-          timeoutId = setTimeout(() => reject(new Error('Auth timeout')), 5000);
-        });
+        // Check if we have a token
+        const token = localStorage.getItem('auth_token');
+        if (!token) {
+          setUser(null);
+          setLoading(false);
+          return;
+        }
 
-        const authPromise = supabase.auth.getSession();
-
-        const { data: { session } } = await Promise.race([authPromise, timeoutPromise]) as any;
-        clearTimeout(timeoutId);
-        setUser(session?.user ?? null);
+        // Verify session and get user
+        const isValid = await authApi.checkSession();
+        if (isValid) {
+          const currentUser = await authApi.getCurrentUser();
+          setUser(currentUser);
+        } else {
+          // Invalid token, clear it
+          localStorage.removeItem('auth_token');
+          setUser(null);
+        }
       } catch (error) {
         console.error('Auth initialization error:', error);
-        // In development mode, don't auto-login - show login page first
-        console.log('Development mode: Starting with no user to show login page');
+        localStorage.removeItem('auth_token');
         setUser(null);
       } finally {
         setLoading(false);
@@ -42,91 +54,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     initAuth();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      (async () => {
-        setUser(session?.user ?? null);
-      })();
-    });
-
-    return () => {
-      clearTimeout(timeoutId);
-      subscription.unsubscribe();
-    };
   }, []);
 
   const signIn = async (username: string, password: string) => {
     try {
-      const email = `${username}@smartzone.local`;
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      if (error) return { error };
-      
-      // In development mode, manually trigger auth state change
-      const isDevelopment = !import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY;
-      if (isDevelopment) {
-        // Get the session after successful sign in
-        const { data: { session } } = await supabase.auth.getSession();
-        setUser(session?.user ?? null);
-      }
-      
+      await authApi.login(username, password);
+      const currentUser = await authApi.getCurrentUser();
+      setUser(currentUser);
       return { error: null };
-    } catch (error) {
-      return { error: error as Error };
+    } catch (error: any) {
+      const errorMessage = error?.message || 'Failed to sign in. Please check your credentials.';
+      return { error: new Error(errorMessage) };
     }
   };
 
   const signUp = async (username: string, password: string) => {
     try {
-      const email = `${username}@smartzone.local`;
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            username,
-          },
-        },
-      });
-      if (error) return { error };
+      await authApi.register(username, password);
       return { error: null };
-    } catch (error) {
-      return { error: error as Error };
+    } catch (error: any) {
+      const errorMessage = error?.message || 'Failed to create account. Please try again.';
+      return { error: new Error(errorMessage) };
     }
   };
 
   const signOut = async () => {
     try {
-      // Check if we're in development mode (mock authentication)
-      const isDevelopment = !import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY;
-      
-      if (isDevelopment) {
-        // In development mode, just clear the user state
-        console.log('Signing out from development mode');
-        setUser(null);
-        return;
-      }
-      
-      // In production mode, use Supabase sign out
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        console.error('Sign out error:', error);
-        throw error;
-      }
-      
-      // Clear user state after successful sign out
+      await authApi.logout();
       setUser(null);
     } catch (error) {
-      console.error('Sign out failed:', error);
-      // Even if Supabase sign out fails, clear the local user state
+      console.error('Sign out error:', error);
+      // Even if logout fails, clear the local state
+      localStorage.removeItem('auth_token');
       setUser(null);
-      throw error;
     }
   };
 
-  const username = user?.email ? convertEmailToUsername(user.email) : null;
+  const username = user?.username || null;
 
   return (
     <AuthContext.Provider value={{ user, username, loading, signIn, signUp, signOut }}>
@@ -142,4 +106,3 @@ export function useAuth() {
   }
   return context;
 }
-

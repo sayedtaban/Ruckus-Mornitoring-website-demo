@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from app.api.routes import (
     anomalies,
+    auth,
     cause_codes,
     clients,
     hosts,
@@ -16,6 +17,7 @@ from app.api.routes import (
 
 api_router = APIRouter()
 
+api_router.include_router(auth.router)
 api_router.include_router(venue.router)
 api_router.include_router(zones.router)
 api_router.include_router(cause_codes.router)

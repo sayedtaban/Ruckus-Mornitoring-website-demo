@@ -11,11 +11,14 @@ class Settings:
     api_prefix: str = "/api"
     influx_url: str = "http://20.64.233.185:8086"
     influx_token: str = (
-        "NVmRj218iGEZbkWEVUokEO2AP3JTasaVhbfEhGk_6okfepun8HzWBxfyb1nEk0ENNnXuU8qoJsFy7m2ykcyrsA=="
+        "NVmRj218iGEZbkWEVUokEO2AP3JTasaVhbfEhGk_6okfepun8HzWBxfyb1nEk0ENNnXuU8qoJsFy7m2ykcyrsA=="  # noqa: E501
     )
     influx_org: str = "wifi-org"
     influx_bucket: str = "demo"
     data_backend: str = "influx"  # "mock" | "influx"
+    secret_key: str = (
+        "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7"
+    )
     enable_cors: bool = True
     cors_allow_origins: List[str] = field(default_factory=lambda: ["*"])
     cors_allow_credentials: bool = True

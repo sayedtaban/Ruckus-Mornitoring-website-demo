@@ -297,17 +297,46 @@ class InfluxWiFiMetricsRepository(WiFiMetricsRepository):
             range_="-24h",
         )
 
-        aggregates: dict[str, dict[str, Any]] = {}
-        seen_points: set[tuple[Any, str]] = set()
+        # First pass: Find the most recent timestamp
+        most_recent_time = None
+        for table in tables:
+            for record in table.records:
+                record_time = record.values.get("_time")
+                if record_time:
+                    if (most_recent_time is None or
+                            record_time > most_recent_time):
+                        most_recent_time = record_time
 
+        if most_recent_time is None:
+            return []
+
+        aggregates: dict[str, dict[str, Any]] = {}
+        # Track unique APs per cause code for the most recent time
+        # Count unique APs (not events) at the most recent timestamp
+        seen_aps: dict[str, set[str]] = {}
+
+        # Second pass: Count unique APs per cause code at most recent time
         for table in tables:
             for record in table.records:
                 cause_tag = record.values.get("causeCode")
                 if not cause_tag:
                     continue
 
+                record_time = record.values.get("_time")
+                # Only process records from the most recent time
+                if record_time != most_recent_time:
+                    continue
+
+                cause_tag_str = str(cause_tag)
+                # Get AP MAC address to count unique APs
+                ap_mac = str(record.values.get("apMac", ""))
+
+                # Initialize seen_aps for this cause code if needed
+                if cause_tag_str not in seen_aps:
+                    seen_aps[cause_tag_str] = set()
+
                 entry = aggregates.setdefault(
-                    cause_tag,
+                    cause_tag_str,
                     {
                         "code": (
                             int(cause_tag)
@@ -319,17 +348,23 @@ class InfluxWiFiMetricsRepository(WiFiMetricsRepository):
                         "impactScore": 0.0,
                     },
                 )
+
                 field = record.values.get("_field")
                 value = record.get_value()
 
-                if field == "causeDescription":
-                    entry["description"] = value or entry["description"]
+                # Count each unique AP only once per cause code
+                if ap_mac and ap_mac not in seen_aps[cause_tag_str]:
+                    seen_aps[cause_tag_str].add(ap_mac)
+                    entry["count"] += 1
+
+                # Update description and impactScore from any field
+                if field == "causeDescription" and value:
+                    entry["description"] = str(value)
                 elif field == "impactScore":
-                    entry["impactScore"] = to_float(value)
-                    key = (record.values.get("_time"), cause_tag)
-                    if key not in seen_points:
-                        seen_points.add(key)
-                        entry["count"] += 1
+                    score = to_float(value)
+                    if score is not None:
+                        # Use the latest impactScore value
+                        entry["impactScore"] = score
                 elif field == "causeCode" and str(value).isdigit():
                     entry["code"] = int(value)
 
