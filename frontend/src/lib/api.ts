@@ -2,9 +2,8 @@
  * API client for communicating with the backend FastAPI server
  */
 
-// Use proxy in development, relative path in production (requires reverse proxy setup)
-// For production, ensure your web server (nginx/apache) proxies /api to http://localhost:3001/api
-const API_BASE_URL = '/api';
+// Use proxy in development, direct URL in production
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? '/api' : 'http://localhost:3001/api');
 
 /**
  * Get stored auth token
