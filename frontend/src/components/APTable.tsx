@@ -1,4 +1,6 @@
-import { Zone } from '../types';
+import { useEffect, useMemo, useState } from 'react';
+import { Zone, APData } from '../types';
+import { accessPointsApi } from '../lib/api';
 
 interface APTableProps {
   zones: Zone[];
@@ -6,9 +8,49 @@ interface APTableProps {
 
 export default function APTable({ zones }: APTableProps) {
   // Get top 3 worst zones by experience score
-  const top3WorstZones = [...zones]
-    .sort((a, b) => a.experienceScore - b.experienceScore)
-    .slice(0, 3);
+  const top3WorstZones = useMemo(
+    () =>
+      [...zones]
+        .sort((a, b) => a.experienceScore - b.experienceScore)
+        .slice(0, 3),
+    [zones]
+  );
+
+  const [apDataMap, setApDataMap] = useState<Record<string, APData>>({});
+
+  useEffect(() => {
+    let isCancelled = false;
+    const zoneIds = top3WorstZones.map((zone) => zone.id).filter(Boolean);
+
+    async function fetchApData() {
+      if (zoneIds.length === 0) {
+        setApDataMap({});
+        return;
+      }
+
+      try {
+        const responses = await Promise.all(zoneIds.map((zoneId) => accessPointsApi.getAccessPoints(zoneId)));
+        if (!isCancelled) {
+          const map: Record<string, APData> = {};
+          zoneIds.forEach((zoneId, index) => {
+            map[zoneId] = responses[index] as APData;
+          });
+          setApDataMap(map);
+        }
+      } catch (err) {
+        console.error('Failed to fetch access point data for zones', err);
+        if (!isCancelled) {
+          setApDataMap({});
+        }
+      }
+    }
+
+    fetchApData();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [top3WorstZones]);
 
   return (
     <div className="bg-grafana-panel border border-grafana-border rounded p-4">
@@ -16,6 +58,12 @@ export default function APTable({ zones }: APTableProps) {
 
       <div className="space-y-6">
         {top3WorstZones.map((zone) => {
+          const zoneApData = apDataMap[zone.id];
+          const topBusyAps = zoneApData?.list
+            ? [...zoneApData.list].sort((a, b) => b.clientCount - a.clientCount).slice(0, 3)
+            : [];
+          const maxClientCount = topBusyAps.length > 0 ? Math.max(...topBusyAps.map((ap) => ap.clientCount)) : 1;
+
           const badgeColor = 
             zone.experienceScore >= 80 ? 'bg-grafana-green/20 text-grafana-green border-grafana-green/30' :
             zone.experienceScore >= 70 ? 'bg-grafana-yellow/20 text-grafana-yellow border-grafana-yellow/30' :
@@ -44,12 +92,15 @@ export default function APTable({ zones }: APTableProps) {
                   <p className="text-xs text-grafana-text-secondary mb-2">Connected Clients</p>
                   <div className="flex items-center gap-2">
                     <div className="flex-1 flex flex-wrap gap-1">
-                      {zone.apData?.list.slice(0, 3).map((ap, idx) => (
+                      {zoneApData?.list.slice(0, 3).map((ap) => (
                         <div key={ap.mac} className="flex items-center gap-1 text-xs text-grafana-text">
                           <div className="w-2 h-2 rounded-full bg-grafana-blue" />
                           <span>{ap.name}: {ap.clientCount}</span>
                         </div>
                       ))}
+                      {!zoneApData?.list.length && (
+                        <span className="text-xs text-grafana-text-secondary">No AP data</span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -58,20 +109,20 @@ export default function APTable({ zones }: APTableProps) {
                 <div>
                   <p className="text-xs text-grafana-text-secondary mb-2">Top Busy APs</p>
                   <div className="space-y-1">
-                    {zone.apData?.list
-                      .sort((a, b) => b.clientCount - a.clientCount)
-                      .slice(0, 3)
-                      .map((ap) => (
-                        <div key={ap.mac} className="flex items-center gap-2">
-                          <div className="text-xs text-grafana-text">{ap.name}</div>
-                          <div className="flex-1 h-2 bg-grafana-bg rounded">
-                            <div 
-                              className="h-full bg-grafana-blue rounded"
-                              style={{ width: `${(ap.clientCount / Math.max(...(zone.apData?.list.map(a => a.clientCount) || [1]))) * 100}%` }}
-                            />
-                          </div>
+                    {topBusyAps.map((ap) => (
+                      <div key={ap.mac} className="flex items-center gap-2">
+                        <div className="text-xs text-grafana-text">{ap.name}</div>
+                        <div className="flex-1 h-2 bg-grafana-bg rounded">
+                          <div 
+                            className="h-full bg-grafana-blue rounded"
+                            style={{ width: `${(ap.clientCount / maxClientCount) * 100}%` }}
+                          />
                         </div>
-                      ))}
+                      </div>
+                    ))}
+                    {topBusyAps.length === 0 && (
+                      <span className="text-xs text-grafana-text-secondary">No utilization data available</span>
+                    )}
                   </div>
                 </div>
 

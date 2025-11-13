@@ -24,14 +24,23 @@ export interface AccessPoint {
   radios: Radio[];
 }
 
+export interface PaginationInfo {
+  total: number;
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+}
+
 export interface APData {
   total: number;
   list: AccessPoint[];
+  pagination?: PaginationInfo;
 }
 
 export interface Zone {
   id: string;
   name: string;
+  domainName?: string;
   totalAPs: number;
   connectedAPs: number;
   disconnectedAPs: number;

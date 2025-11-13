@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ClientData, HostUsageData, OSDistributionData } from '../types';
 
 interface ClientsTableProps {
@@ -7,7 +7,15 @@ interface ClientsTableProps {
   osDistribution: OSDistributionData[];
 }
 
-type ClientSortKey = 'hostname' | 'modelName' | 'ipAddress' | 'macAddress' | 'wlan' | 'apName' | 'apMac';
+type ClientSortKey =
+  | 'hostname'
+  | 'modelName'
+  | 'ipAddress'
+  | 'macAddress'
+  | 'wlan'
+  | 'apName'
+  | 'apMac'
+  | 'dataUsage';
 
 export default function ClientsTable({ clients, hosts, osDistribution }: ClientsTableProps) {
   const formatDataUsage = (mb: number): string => {
@@ -23,6 +31,13 @@ export default function ClientsTable({ clients, hosts, osDistribution }: Clients
   const [wlanFilter, setWlanFilter] = useState<string>('all');
   const [osFilter, setOsFilter] = useState<string>('all');
   const [deviceTypeFilter, setDeviceTypeFilter] = useState<string>('all');
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
+
+  const numericSortKeys = useMemo(
+    () => new Set<ClientSortKey>(['dataUsage']),
+    []
+  );
 
   const wlanOptions = useMemo(() => {
     return Array.from(new Set(clients.map(c => c.wlan))).sort();
@@ -36,7 +51,11 @@ export default function ClientsTable({ clients, hosts, osDistribution }: Clients
     return Array.from(new Set(clients.map(c => c.deviceType).filter(Boolean))) as string[];
   }, [clients]);
 
-  const visibleClients = useMemo(() => {
+  useEffect(() => {
+    setPage(0);
+  }, [clients, search, sortKey, sortDir, wlanFilter, osFilter, deviceTypeFilter]);
+
+  const filteredClients = useMemo(() => {
     const q = search.trim().toLowerCase();
     let filtered = clients;
     if (wlanFilter !== 'all') {
@@ -58,13 +77,54 @@ export default function ClientsTable({ clients, hosts, osDistribution }: Clients
     }
     const dir = sortDir === 'asc' ? 1 : -1;
     return [...filtered].sort((a, b) => {
-      const av = (a as any)[sortKey]?.toString().toLowerCase();
-      const bv = (b as any)[sortKey]?.toString().toLowerCase();
+      const aValue = (a as any)[sortKey];
+      const bValue = (b as any)[sortKey];
+
+      if (numericSortKeys.has(sortKey)) {
+        const aNum =
+          typeof aValue === 'number'
+            ? aValue
+            : Number.isFinite(Number(aValue))
+            ? Number(aValue)
+            : Number.NEGATIVE_INFINITY;
+        const bNum =
+          typeof bValue === 'number'
+            ? bValue
+            : Number.isFinite(Number(bValue))
+            ? Number(bValue)
+            : Number.NEGATIVE_INFINITY;
+        if (aNum < bNum) return -1 * dir;
+        if (aNum > bNum) return 1 * dir;
+        return 0;
+      }
+
+      const av = (aValue ?? '').toString().toLowerCase();
+      const bv = (bValue ?? '').toString().toLowerCase();
       if (av < bv) return -1 * dir;
       if (av > bv) return 1 * dir;
       return 0;
     });
-  }, [clients, search, sortKey, sortDir]);
+  }, [
+    clients,
+    search,
+    sortKey,
+    sortDir,
+    wlanFilter,
+    osFilter,
+    deviceTypeFilter,
+    numericSortKeys,
+  ]);
+
+  const totalClients = filteredClients.length;
+  const totalPages = Math.max(1, Math.ceil(totalClients / pageSize));
+  const currentPage = Math.min(page, totalPages - 1);
+  const paginatedClients = useMemo(() => {
+    const start = currentPage * pageSize;
+    return filteredClients.slice(start, start + pageSize);
+  }, [filteredClients, currentPage, pageSize]);
+
+  const pageStart = totalClients === 0 ? 0 : currentPage * pageSize + 1;
+  const pageEnd = Math.min((currentPage + 1) * pageSize, totalClients);
 
   const handleSort = (key: ClientSortKey) => {
     if (key === sortKey) {
@@ -75,7 +135,11 @@ export default function ClientsTable({ clients, hosts, osDistribution }: Clients
     }
   };
 
-  const renderSortHeader = (key: ClientSortKey, label: string, align: 'left' | 'center' = 'left') => (
+  const renderSortHeader = (
+    key: ClientSortKey,
+    label: string,
+    align: 'left' | 'center' | 'right' = 'left'
+  ) => (
     <th
       onClick={() => handleSort(key)}
       className={`px-4 py-3 text-${align} text-xs font-semibold text-grafana-text-secondary uppercase cursor-pointer select-none`}
@@ -287,11 +351,12 @@ export default function ClientsTable({ clients, hosts, osDistribution }: Clients
                 {renderSortHeader('wlan', 'WLAN')}
                 {renderSortHeader('apName', 'AP Name')}
                 {renderSortHeader('apMac', 'AP MAC')}
+                {renderSortHeader('dataUsage', 'Usage', 'right')}
               </tr>
             </thead>
             <tbody className="divide-y divide-grafana-border">
-              {visibleClients.map((client: ClientData, index: number) => (
-                <tr key={index} className="hover:bg-grafana-hover transition-colors">
+              {paginatedClients.map((client: ClientData, index: number) => (
+                <tr key={`${client.macAddress}-${index}`} className="hover:bg-grafana-hover transition-colors">
                   <td className="px-4 py-3 text-sm text-grafana-text">{client.hostname.substring(0, 20)}...</td>
                   <td className="px-4 py-3 text-sm text-grafana-text-secondary">{client.modelName}</td>
                   <td className="px-4 py-3 text-sm text-grafana-text-secondary">{client.ipAddress}</td>
@@ -299,10 +364,58 @@ export default function ClientsTable({ clients, hosts, osDistribution }: Clients
                   <td className="px-4 py-3 text-sm text-grafana-text-secondary">{client.wlan}</td>
                   <td className="px-4 py-3 text-sm text-grafana-text">{client.apName}</td>
                   <td className="px-4 py-3 text-sm text-grafana-blue">{client.apMac}</td>
+                  <td className="px-4 py-3 text-sm text-right text-grafana-text">
+                    {formatDataUsage(client.dataUsage || 0)}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3 border-t border-grafana-border">
+          <div className="text-xs text-grafana-text-secondary">
+            {totalClients === 0
+              ? 'No clients to display'
+              : `Showing ${pageStart}-${pageEnd} of ${totalClients}`}
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 text-xs text-grafana-text-secondary">
+              <span>Rows per page</span>
+              <select
+                value={pageSize}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                  setPageSize(Number(e.target.value));
+                  setPage(0);
+                }}
+                className="bg-grafana-bg border border-grafana-border text-grafana-text text-xs px-2 py-1 rounded"
+              >
+                {[10, 25, 50, 100].map(size => (
+                  <option key={size} value={size}>
+                    {size}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-grafana-text-secondary">
+              <button
+                className="px-2 py-1 border border-grafana-border rounded disabled:opacity-40 hover:bg-grafana-hover transition-colors"
+                onClick={() => setPage(prev => Math.max(prev - 1, 0))}
+                disabled={currentPage === 0}
+              >
+                Prev
+              </button>
+              <span>
+                Page {totalClients === 0 ? 0 : currentPage + 1} of {totalClients === 0 ? 0 : totalPages}
+              </span>
+              <button
+                className="px-2 py-1 border border-grafana-border rounded disabled:opacity-40 hover:bg-grafana-hover transition-colors"
+                onClick={() => setPage(prev => Math.min(prev + 1, totalPages - 1))}
+                disabled={currentPage >= totalPages - 1 || totalClients === 0}
+              >
+                Next
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

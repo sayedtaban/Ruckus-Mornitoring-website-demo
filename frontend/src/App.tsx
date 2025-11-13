@@ -4,22 +4,41 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import UserProfile from './pages/UserProfile';
-import {
-  generateVenueData,
-  generateCauseCodeData,
-  generateAnomalies,
-  generateClientData,
-  generateHostUsageData,
-  generateOSDistribution,
-  generateBandLoadData
-} from './utils/dataGenerator';
 import ZoneDashboard from './views/ZoneDashboard';
 import VenueDashboard from './views/VenueDashboard';
 import NetflixScoreDashboard from './views/NetflixScoreDashboard';
 import AnomalyDashboard from './views/AnomalyDashboard';
 import ClientsTable from './components/ClientsTable';
 import ChatWidget from './components/ChatWidget';
-import { venueApi, causeCodesApi, anomaliesApi, clientsApi, hostsApi, osDistributionApi, loadApi } from './lib/api';
+import {
+  venueApi,
+  causeCodesApi,
+  anomaliesApi,
+  clientsApi,
+  hostsApi,
+  osDistributionApi,
+  loadApi
+} from './lib/api';
+import {
+  VenueData,
+  CauseCodeData,
+  AnomalyData,
+  ClientData,
+  HostUsageData,
+  OSDistributionData,
+  BandLoadData,
+  Zone
+} from './types';
+
+type ClientListResponse = {
+  data: ClientData[];
+  pagination: {
+    total: number;
+    limit: number;
+    offset: number;
+    hasMore: boolean;
+  };
+};
 
 type DashboardView = 'zone' | 'venue' | 'netflix' | 'anomaly' | 'clients' | 'profile';
 type AuthView = 'login' | 'register';
@@ -30,13 +49,13 @@ function Dashboard() {
   const { username, signOut } = useAuth();
 
   // State for API data
-  const [venueData, setVenueData] = useState<any>(null);
-  const [causeCodeData, setCauseCodeData] = useState<any[]>([]);
-  const [anomalies, setAnomalies] = useState<any[]>([]);
-  const [clients, setClients] = useState<any[]>([]);
-  const [hosts, setHosts] = useState<any[]>([]);
-  const [osDistribution, setOsDistribution] = useState<any[]>([]);
-  const [loadData, setLoadData] = useState<any[]>([]);
+  const [venueData, setVenueData] = useState<VenueData | null>(null);
+  const [causeCodeData, setCauseCodeData] = useState<CauseCodeData[]>([]);
+  const [anomalies, setAnomalies] = useState<AnomalyData[]>([]);
+  const [clients, setClients] = useState<ClientData[]>([]);
+  const [hosts, setHosts] = useState<HostUsageData[]>([]);
+  const [osDistribution, setOsDistribution] = useState<OSDistributionData[]>([]);
+  const [loadData, setLoadData] = useState<BandLoadData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,37 +67,49 @@ function Dashboard() {
         setError(null);
 
         // Fetch all data in parallel
-        const [venue, causeCodes, anomaliesData, clientsData, hostsData, osDist, load] = await Promise.all([
-          venueApi.getVenue().catch(() => generateVenueData()),
-          causeCodesApi.getCauseCodes().catch(() => generateCauseCodeData()),
-          anomaliesApi.getAnomalies().catch(() => generateAnomalies([])),
-          clientsApi.getClients().catch(() => ({ data: generateClientData(50) })),
-          hostsApi.getHosts().catch(() => generateHostUsageData(10)),
-          osDistributionApi.getOSDistribution().catch(() => generateOSDistribution()),
-          loadApi.getLoad().catch(() => ({ bands: generateBandLoadData(1) }))
+        const [
+          venue,
+          causeCodes,
+          anomaliesData,
+          clientsData,
+          hostsData,
+          osDist,
+          load
+        ] = await Promise.all([
+          venueApi.getVenue(),
+          causeCodesApi.getCauseCodes(),
+          anomaliesApi.getAnomalies(),
+          clientsApi.getClients(),
+          hostsApi.getHosts(),
+          osDistributionApi.getOSDistribution(),
+          loadApi.getLoad()
         ]);
 
         // Set state with fetched or fallback data
-        setVenueData(venue);
-        setCauseCodeData(Array.isArray(causeCodes) ? causeCodes : []);
-        setAnomalies(Array.isArray(anomaliesData) ? anomaliesData : []);
-        setClients(Array.isArray((clientsData as any)?.data) ? (clientsData as any).data : []);
-        setHosts(Array.isArray(hostsData) ? hostsData : []);
-        setOsDistribution(Array.isArray(osDist) ? osDist : []);
-        setLoadData(Array.isArray((load as any)?.bands) ? (load as any).bands : (Array.isArray(load) ? load : []));
-
+        setVenueData(venue as VenueData);
+        setCauseCodeData(Array.isArray(causeCodes) ? (causeCodes as CauseCodeData[]) : []);
+        setAnomalies(Array.isArray(anomaliesData) ? (anomaliesData as AnomalyData[]) : []);
+        const clientList = clientsData as ClientListResponse;
+        setClients(Array.isArray(clientList?.data) ? clientList.data : []);
+        setHosts(Array.isArray(hostsData) ? (hostsData as HostUsageData[]) : []);
+        setOsDistribution(Array.isArray(osDist) ? (osDist as OSDistributionData[]) : []);
+        if (Array.isArray((load as { bands: BandLoadData[] })?.bands)) {
+          setLoadData((load as { bands: BandLoadData[] }).bands);
+        } else if (Array.isArray(load)) {
+          setLoadData(load as BandLoadData[]);
+        } else {
+          setLoadData([]);
+        }
       } catch (err) {
         console.error('Error fetching data:', err);
-        setError('Failed to load data. Using mock data.');
-        
-        // Fallback to mock data on error
-        setVenueData(generateVenueData());
-        setCauseCodeData(generateCauseCodeData());
+        setError('Failed to load data from backend API.');
+        setVenueData(null);
+        setCauseCodeData([]);
         setAnomalies([]);
-        setClients(generateClientData(50));
-        setHosts(generateHostUsageData(10));
-        setOsDistribution(generateOSDistribution());
-        setLoadData(generateBandLoadData(1));
+        setClients([]);
+        setHosts([]);
+        setOsDistribution([]);
+        setLoadData([]);
       } finally {
         setLoading(false);
       }
@@ -90,7 +121,7 @@ function Dashboard() {
   const selectedZone = useMemo(() => {
     if (!venueData?.zones?.length) return null;
     if (!selectedZoneId) return venueData.zones[0];
-    return venueData.zones.find((z: any) => z.id === selectedZoneId) || venueData.zones[0];
+    return venueData.zones.find((z: Zone) => z.id === selectedZoneId) || venueData.zones[0];
   }, [selectedZoneId, venueData]);
 
   useEffect(() => {
@@ -224,7 +255,7 @@ function Dashboard() {
                     onChange={(e) => setSelectedZoneId(e.target.value)}
                     className="px-3 py-1.5 bg-grafana-bg border border-grafana-border rounded text-sm text-grafana-text focus:outline-none focus:border-grafana-blue"
                   >
-                    {venueData.zones.map((zone: any) => (
+                    {venueData.zones.map((zone: Zone) => (
                       <option key={zone.id} value={zone.id}>
                         {zone.name}
                       </option>

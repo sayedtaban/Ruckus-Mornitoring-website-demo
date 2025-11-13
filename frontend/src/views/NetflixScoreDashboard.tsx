@@ -1,9 +1,9 @@
-import React, { useMemo, useState } from 'react';
-import { VenueData, CauseCodeData } from '../types';
+import React, { useEffect, useMemo, useState } from 'react';
+import { VenueData, CauseCodeData, TimeSeriesData } from '../types';
 import LineChart from '../components/LineChart';
 import BarChart from '../components/BarChart';
-import { generateTimeSeriesData } from '../utils/dataGenerator';
 import { Activity, AlertTriangle, TrendingDown, Radio } from 'lucide-react';
+import { timeSeriesApi } from '../lib/api';
 
 interface NetflixScoreDashboardProps {
   venueData: VenueData;
@@ -21,9 +21,37 @@ export default function NetflixScoreDashboard({ venueData, causeCodeData }: Netf
       .slice(0, 3);
   }, [venueData.zones]);
 
-  const netflixTimeSeriesData = useMemo(() => {
-    return generateTimeSeriesData(24, topZones, 'netflixScore');
-  }, [topZones]);
+  const [netflixTimeSeriesData, setNetflixTimeSeriesData] = useState<TimeSeriesData[]>([]);
+  const zoneIds = useMemo(() => topZones.map((zone) => zone.id).join(','), [topZones]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function fetchNetflixSeries() {
+      if (!zoneIds) {
+        setNetflixTimeSeriesData([]);
+        return;
+      }
+
+      try {
+        const series = await timeSeriesApi.getTimeSeries({ metric: 'netflixScore', zoneIds });
+        if (!isCancelled) {
+          setNetflixTimeSeriesData(series);
+        }
+      } catch (err) {
+        console.error('Failed to fetch Netflix score time series data', err);
+        if (!isCancelled) {
+          setNetflixTimeSeriesData([]);
+        }
+      }
+    }
+
+    fetchNetflixSeries();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [zoneIds]);
 
   const avgNetflixScore = venueData.zones.reduce((sum, z) => sum + z.netflixScore, 0) / venueData.zones.length;
   const cause25Data = causeCodeData.find(c => c.code === 25);
@@ -249,11 +277,17 @@ export default function NetflixScoreDashboard({ venueData, causeCodeData }: Netf
         </div>
       </div>
 
-      <LineChart
-        data={netflixTimeSeriesData}
-        title="Netflix Stability Score - Top 3 Best Performing Zones (24 Hours)"
-        valueFormatter={(v) => v.toFixed(1)}
-      />
+      {netflixTimeSeriesData.length > 0 ? (
+        <LineChart
+          data={netflixTimeSeriesData}
+          title="Netflix Stability Score - Top 3 Best Performing Zones (24 Hours)"
+          valueFormatter={(v) => v.toFixed(1)}
+        />
+      ) : (
+        <div className="bg-grafana-panel border border-dashed border-grafana-border rounded p-6 text-sm text-grafana-text-secondary">
+          Netflix score trend data is not available for the selected zones.
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <BarChart data={causeCodeData} title="802.11 Disconnect Cause Codes" highlightCode={25} />

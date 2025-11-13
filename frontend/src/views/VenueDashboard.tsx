@@ -1,11 +1,11 @@
-import { useMemo } from 'react';
-import { VenueData, BandLoadData } from '../types';
+import { useEffect, useMemo, useState } from 'react';
+import { VenueData, BandLoadData, TimeSeriesData, Zone } from '../types';
 import MetricCard from '../components/MetricCard';
 import LineChart from '../components/LineChart';
 import ZoneTable from '../components/ZoneTable';
 import APTable from '../components/APTable';
 import LoadChart from '../components/LoadChart';
-import { generateTimeSeriesData } from '../utils/dataGenerator';
+import { timeSeriesApi } from '../lib/api';
 
 interface VenueDashboardProps {
   venueData: VenueData;
@@ -14,60 +14,176 @@ interface VenueDashboardProps {
 }
 
 export default function VenueDashboard({ venueData, onZoneSelect, loadData }: VenueDashboardProps) {
-  const worstZones = useMemo(() => {
-    return [...venueData.zones]
-      .sort((a, b) => a.experienceScore - b.experienceScore)
-      .slice(0, 3);
+  const getDomainName = (zone: Zone): string => {
+    const domain = zone.domainName?.trim();
+    if (domain) {
+      return domain;
+    }
+    const name = zone.name || '';
+    const [prefix] = name.split(' - ');
+    return prefix.trim() || zone.name;
+  };
+
+  const domainOptions = useMemo(() => {
+    const seen = new Set<string>();
+    venueData.zones.forEach((zone) => {
+      const domain = getDomainName(zone);
+      if (domain) {
+        seen.add(domain);
+      }
+    });
+    return ['total', ...Array.from(seen).sort((a, b) => a.localeCompare(b))];
   }, [venueData.zones]);
 
-  const timeSeriesData = useMemo(() => {
+  const [domainFilter, setDomainFilter] = useState<string>('total');
+
+  const [experienceSeries, setExperienceSeries] = useState<TimeSeriesData[]>([]);
+
+  useEffect(() => {
+    if (domainFilter !== 'total' && !domainOptions.includes(domainFilter)) {
+      setDomainFilter('total');
+    }
+  }, [domainFilter, domainOptions]);
+
+  const filteredZones = useMemo(() => {
+    if (domainFilter === 'total') {
+      return venueData.zones;
+    }
+    return venueData.zones.filter(
+      (zone) => getDomainName(zone) === domainFilter
+    );
+  }, [domainFilter, venueData.zones]);
+
+  const zoneSummary = useMemo(() => {
+    const zones = filteredZones;
+    const totalZones = zones.length;
+    const totalAPs = zones.reduce((sum, zone) => sum + zone.totalAPs, 0);
+    const totalClients = zones.reduce((sum, zone) => sum + zone.clients, 0);
+    const avgExperienceScore = totalZones
+      ? zones.reduce((sum, zone) => sum + zone.experienceScore, 0) / totalZones
+      : 0;
+    const slaHits = zones.filter((zone) => zone.apAvailability >= 95).length;
+    const slaCompliance = totalZones ? (slaHits / totalZones) * 100 : 0;
+    const goodZones = zones.filter((zone) => zone.experienceScore >= 80).length;
+    const fairZones = zones.filter(
+      (zone) => zone.experienceScore >= 70 && zone.experienceScore < 80
+    ).length;
+    const poorZones = totalZones - goodZones - fairZones;
+    const highUtilZones = zones.filter((zone) => zone.utilization > 70).length;
+    const avgUtilization = totalZones
+      ? zones.reduce((sum, zone) => sum + zone.utilization, 0) / totalZones
+      : 0;
+
     return {
-      experience: generateTimeSeriesData(24, worstZones, 'experienceScore'),
-      utilization: generateTimeSeriesData(24, worstZones, 'utilization')
+      totalZones,
+      totalAPs,
+      totalClients,
+      avgExperienceScore,
+      slaCompliance,
+      goodZones,
+      fairZones,
+      poorZones,
+      highUtilZones,
+      avgUtilization,
     };
-  }, [worstZones]);
+  }, [filteredZones]);
+
+  const worstZones = useMemo(() => {
+    return [...filteredZones]
+      .sort((a, b) => a.experienceScore - b.experienceScore)
+      .slice(0, 3);
+  }, [filteredZones]);
+
+  const zoneIds = useMemo(
+    () => worstZones.map((zone) => zone.id).join(','),
+    [worstZones]
+  );
+
+  const hasLoadData = useMemo(
+    () => loadData.some((band) => Array.isArray(band.data) && band.data.length > 0),
+    [loadData]
+  );
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function fetchTimeSeries() {
+      if (!zoneIds) {
+        setExperienceSeries([]);
+        return;
+      }
+
+      try {
+        const experience = await timeSeriesApi.getTimeSeries({ metric: 'experienceScore', zoneIds });
+
+        if (!isCancelled) {
+          setExperienceSeries(experience as TimeSeriesData[]);
+        }
+      } catch (err) {
+        console.error('Failed to fetch venue time series data', err);
+        if (!isCancelled) {
+          setExperienceSeries([]);
+        }
+      }
+    }
+
+    fetchTimeSeries();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [zoneIds]);
 
   return (
     <div className="space-y-4">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-grafana-text">Network Overview</h2>
+          <p className="text-sm text-grafana-text-secondary">
+            {domainFilter === 'total'
+              ? 'Aggregated venue performance across all zones.'
+              : `Performance metrics for domain ${domainFilter}.`}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <select
+            id="domain-filter"
+            value={domainFilter}
+            onChange={(event) => setDomainFilter(event.target.value)}
+            className="px-3 py-1.5 bg-grafana-bg border border-grafana-border rounded text-sm text-grafana-text focus:outline-none focus:border-grafana-blue"
+          >
+            {domainOptions.map((domain) => (
+              <option key={domain} value={domain}>
+                {domain === 'total' ? 'Total' : domain}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard
-          title="Total Clusters"
-          value={venueData.totalClusters || 0}
-          trendValue="0.00%"
-          subtitle="vs previous 7 days"
-          trend="stable"
-        />
 
         <MetricCard
           title="Total Access Points"
-          value={venueData.totalAPs.toLocaleString()}
+          value={zoneSummary.totalAPs.toLocaleString()}
           trendValue="0.00%"
           subtitle="vs previous 7 days"
           trend="stable"
         />
 
-        <MetricCard
-          title="Total Switches"
-          value={venueData.totalSwitches || 0}
-          trendValue="0.00%"
-          subtitle="vs previous 7 days"
-          trend="stable"
-        />
 
         <MetricCard
           title="Connected Clients"
-          value={venueData.totalClients.toLocaleString()}
+          value={zoneSummary.totalClients.toLocaleString()}
           trendValue="14.90%"
           subtitle="vs previous 7 days"
           trend="down"
           status="error"
         />
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      
         <MetricCard
           title="Avg Experience Score"
-          value={venueData.avgExperienceScore.toFixed(1)}
+          value={zoneSummary.avgExperienceScore.toFixed(1)}
           trendValue="0.23%"
           subtitle="vs previous 7 days"
           trend="down"
@@ -75,7 +191,7 @@ export default function VenueDashboard({ venueData, onZoneSelect, loadData }: Ve
 
         <MetricCard
           title="SLA Compliance"
-          value={`${venueData.slaCompliance.toFixed(0)}%`}
+          value={`${zoneSummary.slaCompliance.toFixed(0)}%`}
           trendValue="2.1%"
           subtitle="vs previous 7 days"
           trend="up"
@@ -98,12 +214,24 @@ export default function VenueDashboard({ venueData, onZoneSelect, loadData }: Ve
           </div>
         </div>
         <div className="h-124 grid grid-cols-2 gap-4">
-          <LineChart
-            data={timeSeriesData.experience}
-            title=""
-            valueFormatter={(v) => v.toFixed(1)}
-          />
-          <LoadChart data={loadData} title="Load" timeRange="" />
+          {experienceSeries.length > 0 ? (
+            <LineChart
+              data={experienceSeries}
+              title=""
+              valueFormatter={(v) => v.toFixed(1)}
+            />
+          ) : (
+            <div className="bg-grafana-bg border border-dashed border-grafana-border rounded flex items-center justify-center text-xs text-grafana-text-secondary">
+              No experience score trend data available.
+            </div>
+          )}
+          {hasLoadData ? (
+            <LoadChart data={loadData} title="Load" timeRange="" />
+          ) : (
+            <div className="bg-grafana-bg border border-dashed border-grafana-border rounded flex items-center justify-center text-xs text-grafana-text-secondary">
+              No load data available.
+            </div>
+          )}
         </div>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -116,11 +244,17 @@ export default function VenueDashboard({ venueData, onZoneSelect, loadData }: Ve
                 <div className="flex-1 h-2 bg-grafana-bg rounded-full overflow-hidden">
                   <div
                     className="h-full bg-grafana-green"
-                    style={{ width: `${(venueData.zones.filter(z => z.experienceScore >= 80).length / venueData.totalZones) * 100}%` }}
+                    style={{
+                      width: `${
+                        zoneSummary.totalZones
+                          ? (zoneSummary.goodZones / zoneSummary.totalZones) * 100
+                          : 0
+                      }%`,
+                    }}
                   />
                 </div>
                 <span className="text-xs font-medium text-grafana-text w-8 text-right">
-                  {venueData.zones.filter(z => z.experienceScore >= 80).length}
+                  {zoneSummary.goodZones}
                 </span>
               </div>
             </div>
@@ -131,11 +265,17 @@ export default function VenueDashboard({ venueData, onZoneSelect, loadData }: Ve
                 <div className="flex-1 h-2 bg-grafana-bg rounded-full overflow-hidden">
                   <div
                     className="h-full bg-grafana-yellow"
-                    style={{ width: `${(venueData.zones.filter(z => z.experienceScore >= 70 && z.experienceScore < 80).length / venueData.totalZones) * 100}%` }}
+                    style={{
+                      width: `${
+                        zoneSummary.totalZones
+                          ? (zoneSummary.fairZones / zoneSummary.totalZones) * 100
+                          : 0
+                      }%`,
+                    }}
                   />
                 </div>
                 <span className="text-xs font-medium text-grafana-text w-8 text-right">
-                  {venueData.zones.filter(z => z.experienceScore >= 70 && z.experienceScore < 80).length}
+                  {zoneSummary.fairZones}
                 </span>
               </div>
             </div>
@@ -146,11 +286,17 @@ export default function VenueDashboard({ venueData, onZoneSelect, loadData }: Ve
                 <div className="flex-1 h-2 bg-grafana-bg rounded-full overflow-hidden">
                   <div
                     className="h-full bg-grafana-red"
-                    style={{ width: `${(venueData.zones.filter(z => z.experienceScore < 70).length / venueData.totalZones) * 100}%` }}
+                    style={{
+                      width: `${
+                        zoneSummary.totalZones
+                          ? (zoneSummary.poorZones / zoneSummary.totalZones) * 100
+                          : 0
+                      }%`,
+                    }}
                   />
                 </div>
                 <span className="text-xs font-medium text-grafana-text w-8 text-right">
-                  {venueData.zones.filter(z => z.experienceScore < 70).length}
+                  {zoneSummary.poorZones}
                 </span>
               </div>
             </div>
@@ -161,11 +307,17 @@ export default function VenueDashboard({ venueData, onZoneSelect, loadData }: Ve
                 <div className="flex-1 h-2 bg-grafana-bg rounded-full overflow-hidden">
                   <div
                     className="h-full bg-grafana-orange"
-                    style={{ width: `${(venueData.zones.filter(z => z.utilization > 70).length / venueData.totalZones) * 100}%` }}
+                    style={{
+                      width: `${
+                        zoneSummary.totalZones
+                          ? (zoneSummary.highUtilZones / zoneSummary.totalZones) * 100
+                          : 0
+                      }%`,
+                    }}
                   />
                 </div>
                 <span className="text-xs font-medium text-grafana-text w-8 text-right">
-                  {venueData.zones.filter(z => z.utilization > 70).length}
+                  {zoneSummary.highUtilZones}
                 </span>
               </div>
             </div>
@@ -180,7 +332,7 @@ export default function VenueDashboard({ venueData, onZoneSelect, loadData }: Ve
                 <div className="w-3 h-3 rounded-full bg-grafana-green" />
                 <span className="text-xs font-medium text-grafana-text">Good</span>
               </div>
-              <p className="text-2xl font-normal text-grafana-text">{venueData.zones.filter(z => z.experienceScore >= 80).length}</p>
+              <p className="text-2xl font-normal text-grafana-text">{zoneSummary.goodZones}</p>
               <p className="text-xs text-grafana-text-secondary mt-1">zones</p>
             </div>
             <div className="text-center p-3 bg-grafana-bg rounded border border-grafana-border">
@@ -188,7 +340,7 @@ export default function VenueDashboard({ venueData, onZoneSelect, loadData }: Ve
                 <div className="w-3 h-3 rounded-full bg-grafana-yellow" />
                 <span className="text-xs font-medium text-grafana-text">Fair</span>
               </div>
-              <p className="text-2xl font-normal text-grafana-text">{venueData.zones.filter(z => z.experienceScore >= 70 && z.experienceScore < 80).length}</p>
+              <p className="text-2xl font-normal text-grafana-text">{zoneSummary.fairZones}</p>
               <p className="text-xs text-grafana-text-secondary mt-1">zones</p>
             </div>
             <div className="text-center p-3 bg-grafana-bg rounded border border-grafana-border">
@@ -196,7 +348,7 @@ export default function VenueDashboard({ venueData, onZoneSelect, loadData }: Ve
                 <div className="w-3 h-3 rounded-full bg-grafana-red" />
                 <span className="text-xs font-medium text-grafana-text">Poor</span>
               </div>
-              <p className="text-2xl font-normal text-grafana-text">{venueData.zones.filter(z => z.experienceScore < 70).length}</p>
+              <p className="text-2xl font-normal text-grafana-text">{zoneSummary.poorZones}</p>
               <p className="text-xs text-grafana-text-secondary mt-1">zones</p>
             </div>
           </div>
@@ -205,12 +357,12 @@ export default function VenueDashboard({ venueData, onZoneSelect, loadData }: Ve
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-xs text-grafana-text-secondary mb-1">Total Zones</p>
-                <p className="text-lg font-normal text-grafana-text">{venueData.totalZones}</p>
+                <p className="text-lg font-normal text-grafana-text">{zoneSummary.totalZones}</p>
               </div>
               <div>
                 <p className="text-xs text-grafana-text-secondary mb-1">Avg Utilization</p>
                 <p className="text-lg font-normal text-grafana-text">
-                  {(venueData.zones.reduce((sum, z) => sum + z.utilization, 0) / venueData.zones.length).toFixed(1)}%
+                  {zoneSummary.avgUtilization.toFixed(1)}%
                 </p>
               </div>
             </div>
@@ -218,9 +370,9 @@ export default function VenueDashboard({ venueData, onZoneSelect, loadData }: Ve
         </div>
       </div>
 
-      <ZoneTable zones={venueData.zones} onZoneSelect={(zone) => onZoneSelect(zone.id)} />
+      <ZoneTable zones={filteredZones} onZoneSelect={(zone) => onZoneSelect(zone.id)} />
 
-      <APTable zones={venueData.zones} />
+      <APTable zones={filteredZones} />
     </div>
   );
 }

@@ -1,23 +1,121 @@
-import { useMemo } from 'react';
-import { Zone } from '../types';
+import { useEffect, useState } from 'react';
+import { Zone, TimeSeriesData, APData } from '../types';
 import MetricCard from '../components/MetricCard';
 import LineChart from '../components/LineChart';
 import { Wifi, Users, Activity, TrendingUp, Signal, Radio } from 'lucide-react';
-import { generateTimeSeriesData } from '../utils/dataGenerator';
+import { accessPointsApi, timeSeriesApi } from '../lib/api';
 
 interface ZoneDashboardProps {
   zone: Zone;
 }
 
 export default function ZoneDashboard({ zone }: ZoneDashboardProps) {
-  const timeSeriesData = useMemo(() => {
-    return {
-      experience: generateTimeSeriesData(24, [zone], 'experienceScore'),
-      utilization: generateTimeSeriesData(24, [zone], 'utilization'),
-      clients: generateTimeSeriesData(24, [zone], 'clients'),
-      netflix: generateTimeSeriesData(24, [zone], 'netflixScore')
+  const [experienceSeries, setExperienceSeries] = useState<TimeSeriesData[]>([]);
+  const [utilizationSeries, setUtilizationSeries] = useState<TimeSeriesData[]>([]);
+  const [netflixSeries, setNetflixSeries] = useState<TimeSeriesData[]>([]);
+  const [apPage, setApPage] = useState(0);
+  const [apPageSize, setApPageSize] = useState(10);
+  const [apData, setApData] = useState<APData | null>(null);
+  const [apLoading, setApLoading] = useState(false);
+  const [apError, setApError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function fetchSeries() {
+      try {
+        const [experience, utilization, netflix] = await Promise.all([
+          timeSeriesApi.getTimeSeries({ metric: 'experienceScore', zoneIds: zone.id }),
+          timeSeriesApi.getTimeSeries({ metric: 'utilization', zoneIds: zone.id }),
+          timeSeriesApi.getTimeSeries({ metric: 'netflixScore', zoneIds: zone.id })
+        ]);
+
+        if (!isCancelled) {
+          setExperienceSeries(experience as TimeSeriesData[]);
+          setUtilizationSeries(utilization as TimeSeriesData[]);
+          setNetflixSeries(netflix as TimeSeriesData[]);
+        }
+      } catch (err) {
+        console.error(`Failed to fetch time series data for zone ${zone.id}`, err);
+        if (!isCancelled) {
+          setExperienceSeries([]);
+          setUtilizationSeries([]);
+          setNetflixSeries([]);
+        }
+      }
+    }
+
+    fetchSeries();
+
+    return () => {
+      isCancelled = true;
     };
-  }, [zone]);
+  }, [zone.id]);
+
+  useEffect(() => {
+    setApPage(0);
+  }, [zone.id, apPageSize]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function fetchAccessPoints() {
+      try {
+        setApLoading(true);
+        setApError(null);
+        const response = (await accessPointsApi.getAccessPoints(zone.id, {
+          limit: apPageSize,
+          offset: apPage * apPageSize,
+        })) as APData;
+
+        if (isCancelled) {
+          return;
+        }
+
+        setApData(response);
+
+        const pagination = response.pagination;
+        const total = pagination?.total ?? response.total ?? 0;
+        const limitUsed = pagination?.limit ?? apPageSize;
+        const offsetUsed = pagination?.offset ?? apPage * apPageSize;
+
+        if (total > 0 && offsetUsed >= total) {
+          const lastPage = Math.max(Math.ceil(total / limitUsed) - 1, 0);
+          if (apPage !== lastPage) {
+            setApPage(lastPage);
+          }
+        }
+      } catch (error) {
+        console.error(`Failed to load access points for zone ${zone.id}`, error);
+        if (!isCancelled) {
+          setApError('Failed to load access point data.');
+          setApData(null);
+        }
+      } finally {
+        if (!isCancelled) {
+          setApLoading(false);
+        }
+      }
+    }
+
+    fetchAccessPoints();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [zone.id, apPage, apPageSize]);
+
+  const pagination = apData?.pagination;
+  const totalAps = pagination?.total ?? apData?.total ?? 0;
+  const limitUsed = pagination?.limit ?? apPageSize;
+  const offsetUsed = pagination?.offset ?? apPage * apPageSize;
+  const totalApPages =
+    limitUsed > 0 ? Math.max(1, Math.ceil(totalAps / limitUsed)) : 1;
+  const currentApPage = totalAps === 0 ? 0 : Math.floor(offsetUsed / limitUsed);
+  const pagedAps = apData?.list ?? [];
+  const apRangeStart = totalAps === 0 ? 0 : offsetUsed + 1;
+  const apRangeEnd =
+    totalAps === 0 ? 0 : Math.min(offsetUsed + pagedAps.length, totalAps);
 
   const getStatus = (value: number, thresholds: { good: number; warning: number }) => {
     if (value >= thresholds.good) return 'success';
@@ -159,29 +257,161 @@ export default function ZoneDashboard({ zone }: ZoneDashboardProps) {
         </div>
       </div>
 
-      <LineChart
-        data={timeSeriesData.experience}
-        title="Experience Score Trend (24 Hours)"
-        valueFormatter={(v) => v.toFixed(1)}
-        showLegend={false}
-      />
+      {experienceSeries.length > 0 ? (
+        <LineChart
+          data={experienceSeries}
+          title="Experience Score Trend (24 Hours)"
+          valueFormatter={(v) => v.toFixed(1)}
+          showLegend={false}
+        />
+      ) : (
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 text-sm text-slate-500">
+          No experience score time series available for this zone.
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <LineChart
-          data={timeSeriesData.utilization}
-          title="Channel Utilization (24 Hours)"
-          height={250}
-          valueFormatter={(v) => `${v.toFixed(1)}%`}
-          showLegend={false}
-        />
+        {utilizationSeries.length > 0 ? (
+          <LineChart
+            data={utilizationSeries}
+            title="Channel Utilization (24 Hours)"
+            height={250}
+            valueFormatter={(v) => `${v.toFixed(1)}%`}
+            showLegend={false}
+          />
+        ) : (
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 text-sm text-slate-500">
+            No utilization time series available for this zone.
+          </div>
+        )}
 
-        <LineChart
-          data={timeSeriesData.clients}
-          title="Connected Clients (24 Hours)"
-          height={250}
-          valueFormatter={(v) => Math.round(v).toString()}
-          showLegend={false}
-        />
+        {netflixSeries.length > 0 ? (
+          <LineChart
+            data={netflixSeries}
+            title="Netflix Experience (24 Hours)"
+            height={250}
+            valueFormatter={(v) => v.toFixed(1)}
+            showLegend={false}
+          />
+        ) : (
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 text-sm text-slate-500">
+            No Netflix score time series available for this zone.
+          </div>
+        )}
+      </div>
+
+      <div className="bg-black rounded-xl border border-slate-800 p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+          <div>
+            <h3 className="text-lg font-semibold text-white">Access Points</h3>
+            <p className="text-xs text-slate-400">
+              Showing {apRangeStart}-{apRangeEnd} of {totalAps} APs in this zone
+            </p>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-slate-300">
+            <span>Rows per page</span>
+            <select
+              value={limitUsed}
+              onChange={(event) => setApPageSize(Number(event.target.value))}
+              className="border border-slate-600 bg-black rounded px-2 py-1 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-slate-400"
+            >
+              {[10, 25, 50].map((size) => (
+                <option key={size} value={size}>
+                  {size}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm text-slate-200">
+            <thead>
+              <tr className="bg-slate-900 text-slate-300 uppercase text-xs">
+                <th className="px-4 py-3 text-left font-semibold tracking-wide">Name</th>
+                <th className="px-4 py-3 text-left font-semibold tracking-wide">MAC</th>
+                <th className="px-4 py-3 text-left font-semibold tracking-wide">Model</th>
+                <th className="px-4 py-3 text-left font-semibold tracking-wide">Status</th>
+                <th className="px-4 py-3 text-right font-semibold tracking-wide">Clients</th>
+                <th className="px-4 py-3 text-right font-semibold tracking-wide">Channel Util</th>
+                <th className="px-4 py-3 text-right font-semibold tracking-wide">Airtime Util</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800">
+              {apError && (
+                <tr>
+                  <td colSpan={7} className="px-4 py-6 text-center text-rose-400 text-sm">
+                    {apError}
+                  </td>
+                </tr>
+              )}
+              {apLoading && !apError && pagedAps.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="px-4 py-6 text-center text-slate-400 text-sm">
+                    Loading access points…
+                  </td>
+                </tr>
+              )}
+              {!apLoading && !apError && pagedAps.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="px-4 py-6 text-center text-slate-400 text-sm">
+                    No access point data available for this zone.
+                  </td>
+                </tr>
+              )}
+              {pagedAps.map((ap) => (
+                <tr key={ap.mac} className="hover:bg-slate-800 transition-colors">
+                  <td className="px-4 py-3 font-medium text-white">{ap.name}</td>
+                  <td className="px-4 py-3">{ap.mac}</td>
+                  <td className="px-4 py-3">{ap.model}</td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
+                        ap.status === 'online'
+                          ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                          : 'bg-rose-50 text-rose-600 border border-rose-100'
+                      }`}
+                    >
+                      <span
+                        className={`w-2 h-2 rounded-full ${
+                          ap.status === 'online' ? 'bg-emerald-500' : 'bg-rose-500'
+                        }`}
+                      />
+                      {ap.status}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right font-semibold text-slate-200">
+                    {ap.clientCount === undefined ? '—' : ap.clientCount}
+                  </td>
+                  <td className="px-4 py-3 text-right">{ap.channelUtilization.toFixed(1)}%</td>
+                  <td className="px-4 py-3 text-right">{ap.airtimeUtilization.toFixed(1)}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4">
+          <span className="text-xs text-slate-400">
+            Page {totalAps === 0 ? 0 : currentApPage + 1} of {totalAps === 0 ? 0 : totalApPages}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              className="px-3 py-1 text-xs border border-slate-600 rounded disabled:opacity-40 hover:bg-slate-800 transition-colors text-slate-200"
+              onClick={() => setApPage(Math.max(currentApPage - 1, 0))}
+              disabled={currentApPage === 0 || totalAps === 0}
+            >
+              Previous
+            </button>
+            <button
+              className="px-3 py-1 text-xs border border-slate-600 rounded disabled:opacity-40 hover:bg-slate-800 transition-colors text-slate-200"
+              onClick={() => setApPage(Math.min(currentApPage + 1, totalApPages - 1))}
+              disabled={totalAps === 0 || currentApPage >= totalApPages - 1}
+            >
+              Next
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

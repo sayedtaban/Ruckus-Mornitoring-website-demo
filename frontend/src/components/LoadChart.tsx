@@ -8,16 +8,66 @@ interface LoadChartProps {
   timeRange?: string;
 }
 
+const generateDefaultLoadData = (): BandLoadData[] => {
+  const now = Date.now();
+  const points = Array.from({ length: 12 }, (_, idx) => {
+    const timestamp = new Date(now - (11 - idx) * 5 * 60 * 1000).toISOString();
+    const band24G = 0.18 + Math.sin(idx / 2) * 0.05;
+    const band5G = 0.28 + Math.sin(idx / 1.5) * 0.12;
+    const band6G5G = 0.02 + Math.max(Math.sin(idx / 3), 0) * 0.01;
+    return {
+      timestamp,
+      band24G: Number(band24G.toFixed(3)),
+      band5G: Number(band5G.toFixed(3)),
+      band6G5G: Number(band6G5G.toFixed(3)),
+    };
+  });
+
+  return [
+    {
+      band: '2.4G',
+      color: '#5794F2',
+      data: points.map(({ timestamp, band24G }) => ({
+        timestamp,
+        band24G,
+        band5G: 0,
+        band6G5G: 0,
+      })),
+    },
+    {
+      band: '5G',
+      color: '#73BF69',
+      data: points.map(({ timestamp, band5G }) => ({
+        timestamp,
+        band24G: 0,
+        band5G,
+        band6G5G: 0,
+      })),
+    },
+    {
+      band: '6G/5G',
+      color: '#F2495C',
+      data: points.map(({ timestamp, band6G5G }) => ({
+        timestamp,
+        band24G: 0,
+        band5G: 0,
+        band6G5G,
+      })),
+    },
+  ];
+};
+
 export default function LoadChart({ data, title = "Load", height = 300, timeRange = "Last 1 hour" }: LoadChartProps) {
   const { chartData, maxValue, minValue } = useMemo(() => {
-    const allValues = data.flatMap(band => 
+    const source = data.length ? data : generateDefaultLoadData();
+    const allValues = source.flatMap(band =>
       band.data.map(d => d.band24G + d.band5G + d.band6G5G)
     );
-    const max = Math.max(...allValues);
-    const min = Math.min(...allValues);
+    const max = allValues.length ? Math.max(...allValues) : 1;
+    const min = allValues.length ? Math.min(...allValues) : 0;
     
     return {
-      chartData: data,
+      chartData: source,
       maxValue: max,
       minValue: min
     };

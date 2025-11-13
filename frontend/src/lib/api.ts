@@ -52,8 +52,29 @@ export const accessPointsApi = {
   /**
    * Get access points for a specific zone
    */
-  async getAccessPoints(zoneId: string) {
-    return fetchApi(`/zones/${zoneId}/aps`);
+  async getAccessPoints(
+    zoneId: string,
+    params?: {
+      limit?: number;
+      offset?: number;
+      sort?:
+        | 'clients'
+        | 'name'
+        | 'channelUtilization'
+        | 'airtimeUtilization'
+        | 'cpuUtilization'
+        | 'memoryUtilization';
+    }
+  ) {
+    const queryParams = new URLSearchParams();
+    if (params?.limit) queryParams.set('limit', params.limit.toString());
+    if (params?.offset) queryParams.set('offset', params.offset.toString());
+    if (params?.sort) queryParams.set('sort', params.sort);
+
+    const queryString = queryParams.toString();
+    return fetchApi(
+      `/zones/${zoneId}/aps${queryString ? `?${queryString}` : ''}`
+    );
   },
 };
 

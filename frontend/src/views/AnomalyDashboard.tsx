@@ -1,9 +1,9 @@
-import { useMemo } from 'react';
-import { VenueData, AnomalyData } from '../types';
+import { useEffect, useMemo, useState } from 'react';
+import { VenueData, AnomalyData, TimeSeriesData } from '../types';
 import AnomalyList from '../components/AnomalyList';
 import LineChart from '../components/LineChart';
 import { AlertTriangle, TrendingUp, Activity, XCircle } from 'lucide-react';
-import { generateTimeSeriesData } from '../utils/dataGenerator';
+import { timeSeriesApi } from '../lib/api';
 
 interface AnomalyDashboardProps {
   venueData: VenueData;
@@ -25,9 +25,37 @@ export default function AnomalyDashboard({ venueData, anomalies }: AnomalyDashbo
     return venueData.zones.filter(z => zoneIds.has(z.name));
   }, [anomalies, venueData.zones]);
 
-  const experienceTimeSeriesData = useMemo(() => {
-    if (affectedZones.length === 0) return [];
-    return generateTimeSeriesData(24, affectedZones.slice(0, 3), 'experienceScore');
+  const [experienceTimeSeriesData, setExperienceTimeSeriesData] = useState<TimeSeriesData[]>([]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function fetchExperienceSeries() {
+      if (!affectedZones.length) {
+        setExperienceTimeSeriesData([]);
+        return;
+      }
+
+      const zoneIds = affectedZones.slice(0, 3).map((zone) => zone.id).join(',');
+
+      try {
+        const series = await timeSeriesApi.getTimeSeries({ metric: 'experienceScore', zoneIds });
+        if (!isCancelled) {
+          setExperienceTimeSeriesData(series);
+        }
+      } catch (err) {
+        console.error('Failed to fetch anomaly experience time series data', err);
+        if (!isCancelled) {
+          setExperienceTimeSeriesData([]);
+        }
+      }
+    }
+
+    fetchExperienceSeries();
+
+    return () => {
+      isCancelled = true;
+    };
   }, [affectedZones]);
 
   const anomalyTypeBreakdown = useMemo(() => {
@@ -106,12 +134,16 @@ export default function AnomalyDashboard({ venueData, anomalies }: AnomalyDashbo
         </div>
       </div>
 
-      {experienceTimeSeriesData.length > 0 && (
+      {experienceTimeSeriesData.length > 0 ? (
         <LineChart
           data={experienceTimeSeriesData}
           title="Experience Score - Affected Zones with Detected Anomalies (24 Hours)"
           valueFormatter={(v) => v.toFixed(1)}
         />
+      ) : (
+        <div className="bg-grafana-panel border border-dashed border-grafana-border rounded p-6 text-sm text-grafana-text-secondary">
+          Experience score time series data is unavailable for the affected zones.
+        </div>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
