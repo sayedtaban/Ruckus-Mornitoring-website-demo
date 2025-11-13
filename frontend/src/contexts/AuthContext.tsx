@@ -63,7 +63,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(currentUser);
       return { error: null };
     } catch (error: any) {
-      const errorMessage = error?.message || 'Failed to sign in. Please check your credentials.';
+      // Extract user-friendly error message
+      let errorMessage = 'Failed to sign in. Please check your credentials.';
+      
+      if (error?.message) {
+        // If the error message is already user-friendly (from our improved fetchApi)
+        errorMessage = error.message;
+      } else if (error?.status === 401) {
+        errorMessage = 'Incorrect username or password. Please try again.';
+      } else if (error?.status === 400) {
+        errorMessage = 'Invalid request. Please check your input.';
+      } else if (error?.status === 500) {
+        errorMessage = 'Server error. Please try again later.';
+      }
+      
       return { error: new Error(errorMessage) };
     }
   };
@@ -73,7 +86,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await authApi.register(username, password);
       return { error: null };
     } catch (error: any) {
-      const errorMessage = error?.message || 'Failed to create account. Please try again.';
+      // Extract user-friendly error message
+      let errorMessage = 'Failed to create account. Please try again.';
+      
+      if (error?.message) {
+        // If the error message is already user-friendly (from our improved fetchApi)
+        errorMessage = error.message;
+      } else if (error?.status === 400) {
+        errorMessage = 'Invalid request. Please check your input.';
+      } else if (error?.status === 409 || error?.status === 422) {
+        errorMessage = 'Username or email already exists. Please choose a different one.';
+      } else if (error?.status === 500) {
+        errorMessage = 'Server error. Please try again later.';
+      }
+      
       return { error: new Error(errorMessage) };
     }
   };

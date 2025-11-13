@@ -3,7 +3,30 @@
  */
 
 // Use proxy in development, direct URL in production
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? '/api' : 'http://localhost:3001/api');
+// In production/VPS, use the actual backend server URL
+// Default to same hostname as frontend but port 3001, or use environment variable
+const getApiBaseUrl = () => {
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL;
+  }
+  
+  if (import.meta.env.DEV) {
+    // Development: use proxy
+    return '/api';
+  }
+  
+  // Production: detect the current hostname and use port 3001
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    const protocol = window.location.protocol;
+    return `${protocol}//${hostname}:3001/api`;
+  }
+  
+  // Fallback
+  return 'http://localhost:3001/api';
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 /**
  * Get stored auth token
@@ -32,9 +55,9 @@ async function fetchApi<T>(
 ): Promise<T> {
   try {
     const token = getAuthToken();
-    const headers: HeadersInit = {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      ...options?.headers,
+      ...(options?.headers as Record<string, string>),
     };
 
     if (token) {
@@ -47,8 +70,43 @@ async function fetchApi<T>(
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`API Error (${response.status}): ${errorText}`);
+      let errorMessage = `API Error (${response.status})`;
+      
+      try {
+        // Read response as text first
+        const errorText = await response.text();
+        
+        // Try to parse as JSON
+        try {
+          const errorData = JSON.parse(errorText);
+          // Extract the detail field from FastAPI error responses
+          if (errorData.detail) {
+            errorMessage = errorData.detail;
+          } else if (errorData.message) {
+            errorMessage = errorData.message;
+          } else if (typeof errorData === 'string') {
+            errorMessage = errorData;
+          } else {
+            errorMessage = errorText;
+          }
+        } catch {
+          // If not JSON, use the text as-is (if available)
+          errorMessage = errorText || errorMessage;
+        }
+      } catch {
+        // If reading fails, use status-based message
+        if (response.status === 401) {
+          errorMessage = 'Incorrect username or password';
+        } else if (response.status === 400) {
+          errorMessage = 'Invalid request';
+        } else if (response.status === 500) {
+          errorMessage = 'Server error';
+        }
+      }
+      
+      const error = new Error(errorMessage);
+      (error as any).status = response.status;
+      throw error;
     }
 
     return await response.json();

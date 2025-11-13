@@ -106,5 +106,17 @@ class WiFiMetricsService:
 
     @staticmethod
     def _parse_collection(data: Iterable[Any], model: type[Any]) -> list[Any]:
-        return [model.model_validate(item) for item in data]
+        """Parse a collection of data items into model instances, skipping invalid items"""
+        result = []
+        for item in data:
+            try:
+                result.append(model.model_validate(item))
+            except Exception as e:
+                # Log validation errors but continue processing other items
+                # This prevents one bad item from breaking the entire response
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Failed to validate item {item}: {e}")
+                continue
+        return result
 
