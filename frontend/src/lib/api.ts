@@ -2,33 +2,8 @@
  * API client for communicating with the backend FastAPI server
  */
 
-// Use proxy in development (only when accessing via localhost), direct URL otherwise
-// In production/VPS, use the actual backend server URL
-// Default to same hostname as frontend but port 3001, or use environment variable
-const getApiBaseUrl = () => {
-  if (import.meta.env.VITE_API_BASE_URL) {
-    return import.meta.env.VITE_API_BASE_URL;
-  }
-  
-  // Detect if we're accessing from localhost or remote
-  if (typeof window !== 'undefined') {
-    const hostname = window.location.hostname;
-    const protocol = window.location.protocol;
-    
-    // If accessing from localhost, use proxy in dev mode
-    if (import.meta.env.DEV && (hostname === 'localhost' || hostname === '127.0.0.1')) {
-      return '/api';
-    }
-    
-    // Otherwise, use direct URL with same hostname but port 3001
-    return `${protocol}//${hostname}:3001/api`;
-  }
-  
-  // Fallback
-  return 'http://localhost:3001/api';
-};
-
-const API_BASE_URL = getApiBaseUrl();
+// Use proxy in development, direct URL in production
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? '/api' : 'http://localhost:3001/api');
 
 /**
  * Get stored auth token
