@@ -39,6 +39,11 @@ def create_application() -> FastAPI:
             allow_headers=settings.cors_allow_headers,
         )
 
+    @app.get("/health")
+    async def health_check():
+        """Health check endpoint"""
+        return {"status": "healthy", "service": "Ruckus Backend API"}
+
     app.include_router(api_router, prefix=settings.api_prefix)
 
     return app
