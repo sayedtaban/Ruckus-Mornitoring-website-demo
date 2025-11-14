@@ -15,11 +15,31 @@ type NFClassification = 'all' | 'good' | 'fair' | 'poor';
 type CC25Filter = 'all' | 'high-risk' | 'critical';
 
 export default function NetflixScoreDashboard({ venueData, causeCodeData }: NetflixScoreDashboardProps) {
+  // Zone filter state
+  const [zoneFilter, setZoneFilter] = useState<string>('all');
+
+  // Get zone options from venue data
+  const zoneOptions = useMemo(() => {
+    if (!venueData?.zones) return [];
+    return [
+      { id: 'all', name: 'All Zones' },
+      ...venueData.zones.map((zone) => ({ id: zone.id, name: zone.name }))
+    ];
+  }, [venueData]);
+
+  // Filter zones by selected zone
+  const filteredZones = useMemo(() => {
+    if (zoneFilter === 'all') {
+      return venueData.zones;
+    }
+    return venueData.zones.filter((zone) => zone.id === zoneFilter);
+  }, [venueData.zones, zoneFilter]);
+
   const topZones = useMemo(() => {
-    return [...venueData.zones]
+    return [...filteredZones]
       .sort((a, b) => b.netflixScore - a.netflixScore)
       .slice(0, 3);
-  }, [venueData.zones]);
+  }, [filteredZones]);
 
   const [netflixTimeSeriesData, setNetflixTimeSeriesData] = useState<TimeSeriesData[]>([]);
   const zoneIds = useMemo(() => topZones.map((zone) => zone.id).join(','), [topZones]);
@@ -53,16 +73,21 @@ export default function NetflixScoreDashboard({ venueData, causeCodeData }: Netf
     };
   }, [zoneIds]);
 
-  const avgNetflixScore = venueData.zones.reduce((sum, z) => sum + z.netflixScore, 0) / venueData.zones.length;
+  const avgNetflixScore = filteredZones.length > 0 
+    ? filteredZones.reduce((sum, z) => sum + z.netflixScore, 0) / filteredZones.length 
+    : 0;
   const cause25Data = causeCodeData.find(c => c.code === 25);
 
   const stabilityMetrics = useMemo(() => {
-    const avgUtilization = venueData.zones.reduce((sum, z) => sum + z.utilization, 0) / venueData.zones.length;
-    const avgRxDesense = venueData.zones.reduce((sum, z) => sum + z.rxDesense, 0) / venueData.zones.length;
-    const highUtilizationZones = venueData.zones.filter(z => z.utilization > 80).length;
+    if (filteredZones.length === 0) {
+      return { avgUtilization: 0, avgRxDesense: 0, highUtilizationZones: 0 };
+    }
+    const avgUtilization = filteredZones.reduce((sum, z) => sum + z.utilization, 0) / filteredZones.length;
+    const avgRxDesense = filteredZones.reduce((sum, z) => sum + z.rxDesense, 0) / filteredZones.length;
+    const highUtilizationZones = filteredZones.filter(z => z.utilization > 80).length;
 
     return { avgUtilization, avgRxDesense, highUtilizationZones };
-  }, [venueData.zones]);
+  }, [filteredZones]);
 
   const classifyZone = (score: number): Exclude<NFClassification, 'all'> => {
     if (score >= 80) return 'good';
@@ -78,12 +103,12 @@ export default function NetflixScoreDashboard({ venueData, causeCodeData }: Netf
 
   // Calculate CC25 Risk score per zone (combines Netflix score, utilization, RxDesense)
   const zonesWithRisk = useMemo(() => {
-    return venueData.zones.map(zone => {
+    return filteredZones.map(zone => {
       // Risk score: lower Netflix score + higher utilization + higher RxDesense = higher risk
       const cc25Risk = (100 - zone.netflixScore) * 0.5 + zone.utilization * 0.3 + zone.rxDesense * 0.2;
       return { ...zone, cc25Risk };
     });
-  }, [venueData.zones]);
+  }, [filteredZones]);
 
   // Venue performance summary
   const venuePerformance = useMemo(() => {
@@ -162,11 +187,28 @@ export default function NetflixScoreDashboard({ venueData, causeCodeData }: Netf
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-grafana-text mb-2">Netflix Streaming Score</h2>
-        <p className="text-grafana-text-secondary">
-          Video streaming stability analysis based on QoS metrics and 802.11 cause codes
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-white mb-2">Netflix Streaming Score</h2>
+          <p className="text-grafana-text-secondary">
+            Video streaming stability analysis based on QoS metrics and 802.11 cause codes
+          </p>
+        </div>
+        {venueData && zoneOptions.length > 1 && (
+          <div className="flex items-center gap-2">
+            <select
+              value={zoneFilter}
+              onChange={(e) => setZoneFilter(e.target.value)}
+              className="px-3 py-1.5 bg-grafana-bg border border-grafana-border rounded text-sm text-grafana-text focus:outline-none focus:border-grafana-blue"
+            >
+              {zoneOptions.map((zone) => (
+                <option key={zone.id} value={zone.id}>
+                  {zone.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

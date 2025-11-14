@@ -263,7 +263,13 @@ function Dashboard() {
           )}
           {activeView === 'clients' && (
             <div className="p-6">
-              <ClientsTable clients={clients} hosts={hosts} osDistribution={osDistribution} loading={clientsLoading} />
+              <ClientsTable 
+                clients={clients} 
+                hosts={hosts} 
+                osDistribution={osDistribution} 
+                loading={clientsLoading}
+                venueData={venueData}
+              />
             </div>
           )}
           {activeView === 'netflix' && (

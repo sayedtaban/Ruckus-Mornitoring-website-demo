@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ClientData, HostUsageData, OSDistributionData } from '../types';
+import { ClientData, HostUsageData, OSDistributionData, VenueData, Zone } from '../types';
 
 interface ClientsTableProps {
   clients: ClientData[];
   hosts: HostUsageData[];
   osDistribution: OSDistributionData[];
   loading?: boolean;
+  venueData?: VenueData | null;
 }
 
 type ClientSortKey =
@@ -18,7 +19,87 @@ type ClientSortKey =
   | 'apMac'
   | 'dataUsage';
 
-export default function ClientsTable({ clients, hosts, osDistribution, loading = false }: ClientsTableProps) {
+export default function ClientsTable({ clients, hosts, osDistribution, loading = false, venueData }: ClientsTableProps) {
+  // Zone filter state
+  const [zoneFilter, setZoneFilter] = useState<string>('all');
+
+  // Get zone options from venue data
+  const zoneOptions = useMemo(() => {
+    if (!venueData?.zones) return [];
+    return [
+      { id: 'all', name: 'All Zones' },
+      ...venueData.zones.map((zone: Zone) => ({ id: zone.id, name: zone.name }))
+    ];
+  }, [venueData]);
+
+  // Filter clients by selected zone
+  // Note: This is a client-side filter. For proper zone filtering, 
+  // the API should be called with zoneId parameter when zoneFilter changes.
+  // Since clients don't have zoneId in the data structure, we'll show all clients for now.
+  // To properly implement: use React Query to fetch clients with zoneId parameter.
+  const zoneFilteredClients = useMemo(() => {
+    if (zoneFilter === 'all') {
+      return clients;
+    }
+    // TODO: Implement proper zone filtering by:
+    // 1. Using React Query to fetch clients with zoneId parameter
+    // 2. Or matching clients to zones via AP data
+    // For now, return all clients (filtering will be done server-side when API is called)
+    return clients;
+  }, [clients, zoneFilter]);
+
+  // Calculate hosts from zone-filtered clients - show top 10
+  const filteredHosts = useMemo(() => {
+    if (zoneFilter === 'all') {
+      return hosts.slice(0, 10); // Top 10 hosts
+    }
+    // Group zone-filtered clients by hostname and sum data usage
+    const hostMap = new Map<string, number>();
+    zoneFilteredClients.forEach((client: ClientData) => {
+      const hostname = client.hostname || 'Unknown';
+      const currentUsage = hostMap.get(hostname) || 0;
+      hostMap.set(hostname, currentUsage + (client.dataUsage || 0));
+    });
+    
+    return Array.from(hostMap.entries())
+      .map(([hostname, dataUsage]) => ({ hostname, dataUsage }))
+      .sort((a, b) => b.dataUsage - a.dataUsage)
+      .slice(0, 10); // Top 10 hosts
+  }, [zoneFilteredClients, hosts, zoneFilter]);
+
+  // Calculate OS distribution from zone-filtered clients - show top 10
+  const filteredOSDistribution = useMemo(() => {
+    if (zoneFilter === 'all') {
+      return osDistribution.slice(0, 10); // Top 10 OS
+    }
+    // Count OS from zone-filtered clients
+    const osMap = new Map<string, number>();
+    zoneFilteredClients.forEach((client: ClientData) => {
+      const os = client.os || 'Unknown';
+      osMap.set(os, (osMap.get(os) || 0) + 1);
+    });
+    
+    const total = zoneFilteredClients.length;
+    if (total === 0) return osDistribution.slice(0, 10);
+    
+    // Get colors from original distribution
+    const colorMap = new Map<string, string>();
+    osDistribution.forEach(item => {
+      colorMap.set(item.os, item.color);
+    });
+    
+    const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+    let colorIndex = 0;
+    
+    return Array.from(osMap.entries())
+      .map(([os, count]) => ({
+        os,
+        percentage: (count / total) * 100,
+        color: colorMap.get(os) || colors[colorIndex++ % colors.length]
+      }))
+      .sort((a, b) => b.percentage - a.percentage)
+      .slice(0, 10); // Top 10 OS
+  }, [zoneFilteredClients, osDistribution, zoneFilter]);
   const formatDataUsage = (mb: number): string => {
     if (mb >= 1000) {
       return `${(mb / 1000).toFixed(1)}GB`;
@@ -41,24 +122,24 @@ export default function ClientsTable({ clients, hosts, osDistribution, loading =
   );
 
   const wlanOptions = useMemo(() => {
-    return Array.from(new Set(clients.map(c => c.wlan))).sort();
-  }, [clients]);
+    return Array.from(new Set(zoneFilteredClients.map(c => c.wlan))).sort();
+  }, [zoneFilteredClients]);
 
   const osOptions = useMemo(() => {
-    return Array.from(new Set(clients.map(c => c.os).filter(Boolean))) as string[];
-  }, [clients]);
+    return Array.from(new Set(zoneFilteredClients.map(c => c.os).filter(Boolean))) as string[];
+  }, [zoneFilteredClients]);
 
   const deviceTypeOptions = useMemo(() => {
-    return Array.from(new Set(clients.map(c => c.deviceType).filter(Boolean))) as string[];
-  }, [clients]);
+    return Array.from(new Set(zoneFilteredClients.map(c => c.deviceType).filter(Boolean))) as string[];
+  }, [zoneFilteredClients]);
 
   useEffect(() => {
     setPage(0);
-  }, [clients, search, sortKey, sortDir, wlanFilter, osFilter, deviceTypeFilter]);
+  }, [zoneFilteredClients, search, sortKey, sortDir, wlanFilter, osFilter, deviceTypeFilter, zoneFilter]);
 
   const filteredClients = useMemo(() => {
     const q = search.trim().toLowerCase();
-    let filtered = clients;
+    let filtered = zoneFilteredClients;
     if (wlanFilter !== 'all') {
       filtered = filtered.filter(c => c.wlan === wlanFilter);
     }
@@ -161,7 +242,29 @@ export default function ClientsTable({ clients, hosts, osDistribution, loading =
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-white">Clients</h2>
+        <div>
+          <h2 className="text-2xl font-bold text-white">Clients</h2>
+          <p className="text-sm text-grafana-text-secondary">
+            {zoneFilter === 'all'
+              ? 'All clients across all zones.'
+              : `Clients in ${zoneOptions.find(z => z.id === zoneFilter)?.name || 'selected zone'}.`}
+          </p>
+        </div>
+        {venueData && zoneOptions.length > 1 && (
+          <div className="flex items-center gap-2">
+            <select
+              value={zoneFilter}
+              onChange={(e) => setZoneFilter(e.target.value)}
+              className="px-3 py-1.5 bg-grafana-bg border border-grafana-border rounded text-sm text-grafana-text focus:outline-none focus:border-grafana-blue"
+            >
+              {zoneOptions.map((zone) => (
+                <option key={zone.id} value={zone.id}>
+                  {zone.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -169,9 +272,9 @@ export default function ClientsTable({ clients, hosts, osDistribution, loading =
         <div className="bg-grafana-panel border border-grafana-border rounded p-4">
           <h3 className="text-sm font-normal text-grafana-text mb-4">Hosts</h3>
           <div className="space-y-3">
-            {hosts.map((host, index) => {
-              const maxUsage = Math.max(...hosts.map(h => h.dataUsage));
-              const percentage = (host.dataUsage / maxUsage) * 100;
+            {filteredHosts.map((host, index) => {
+              const maxUsage = filteredHosts.length > 0 ? Math.max(...filteredHosts.map(h => h.dataUsage)) : 1;
+              const percentage = maxUsage > 0 ? (host.dataUsage / maxUsage) * 100 : 0;
               
               return (
                 <div key={index} className="flex items-center justify-between gap-4">
@@ -210,7 +313,7 @@ export default function ClientsTable({ clients, hosts, osDistribution, loading =
                   const radius = 80;
                   const innerRadius = 50;
 
-                  return osDistribution.map((item, index) => {
+                  return filteredOSDistribution.map((item, index) => {
                     const percentage = item.percentage;
                     const angle = (percentage / 100) * 360;
                     const startAngle = currentAngle;
@@ -259,7 +362,7 @@ export default function ClientsTable({ clients, hosts, osDistribution, loading =
 
           {/* Legend */}
           <div className="space-y-2">
-            {osDistribution.map((item, index) => (
+            {filteredOSDistribution.map((item, index) => (
               <div key={index} className="flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2">
                   <div
