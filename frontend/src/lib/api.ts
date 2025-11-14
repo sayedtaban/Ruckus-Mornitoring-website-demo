@@ -2,31 +2,21 @@
  * API client for communicating with the backend FastAPI server
  */
 
-// Use proxy in development when on localhost, direct URL when on network IP
+// Use proxy in development, direct URL in production
+// The Vite proxy handles both localhost and network IP access
 function getApiBaseUrl(): string {
   // If explicitly set via environment variable, use it
   if (import.meta.env.VITE_API_BASE_URL) {
     return import.meta.env.VITE_API_BASE_URL;
   }
   
-  // In production, use the configured URL
-  if (!import.meta.env.DEV) {
-    return 'http://localhost:3001/api';
-  }
-  
-  // In development, check if we're accessing via network IP
-  const hostname = window.location.hostname;
-  const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '';
-  
-  if (isLocalhost) {
-    // Use proxy when on localhost
+  // In development, always use the proxy (works for both localhost and network IPs)
+  if (import.meta.env.DEV) {
     return '/api';
-  } else {
-    // When accessed via network IP, use the backend's network address
-    // Replace with your actual backend server IP or use the same hostname
-    const backendPort = '3001';
-    return `http://${hostname}:${backendPort}/api`;
   }
+  
+  // In production, use the configured URL
+  return 'http://localhost:3001/api';
 }
 
 const API_BASE_URL = getApiBaseUrl();
