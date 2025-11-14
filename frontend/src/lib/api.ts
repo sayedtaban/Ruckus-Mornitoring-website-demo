@@ -5,14 +5,15 @@
 // Use proxy in development, direct URL in production
 // The Vite proxy handles both localhost and network IP access
 function getApiBaseUrl(): string {
-  // If explicitly set via environment variable, use it
-  if (import.meta.env.VITE_API_BASE_URL) {
-    return import.meta.env.VITE_API_BASE_URL;
+  // In development mode, ALWAYS use the proxy to avoid CORS issues
+  // The proxy runs server-side and can access localhost:3001 even when client is on network IP
+  if (import.meta.env.DEV || import.meta.env.MODE === 'development') {
+    return '/api';
   }
   
-  // In development, always use the proxy (works for both localhost and network IPs)
-  if (import.meta.env.DEV) {
-    return '/api';
+  // If explicitly set via environment variable in production, use it
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL;
   }
   
   // In production, use the configured URL
@@ -20,6 +21,9 @@ function getApiBaseUrl(): string {
 }
 
 const API_BASE_URL = getApiBaseUrl();
+
+// Debug: Log API base URL (helps identify configuration issues)
+console.log('[API Config] Mode:', import.meta.env.MODE, '| DEV:', import.meta.env.DEV, '| API Base URL:', API_BASE_URL);
 
 /**
  * Get stored auth token
@@ -57,7 +61,16 @@ async function fetchApi<T>(
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    // Ensure endpoint starts with / if using proxy
+    const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    const url = `${API_BASE_URL}${normalizedEndpoint}`;
+    
+    // Debug log in development
+    if (import.meta.env.DEV) {
+      console.log('Fetching:', url);
+    }
+
+    const response = await fetch(url, {
       ...options,
       headers,
     });

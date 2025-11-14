@@ -10,12 +10,21 @@ export default defineConfig({
   server: {
     host: '0.0.0.0', // Allow access from network IPs
     port: 5173,
+    strictPort: false,
     proxy: {
       '/api': {
-        target: process.env.VITE_API_BASE_URL || 'http://localhost:3001',
+        target: process.env.VITE_BACKEND_URL || 'http://localhost:3001',
         changeOrigin: true,
         secure: false,
-        rewrite: (path) => path.replace(/^\/api/, '/api'),
+        ws: true, // Enable websocket proxying
+        configure: (proxy, _options) => {
+          proxy.on('error', (err, _req, _res) => {
+            console.log('Proxy error:', err);
+          });
+          proxy.on('proxyReq', (proxyReq, req, _res) => {
+            console.log('Proxying request:', req.method, req.url, '->', proxyReq.path);
+          });
+        },
       },
     },
   },
