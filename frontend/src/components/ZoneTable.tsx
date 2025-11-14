@@ -111,59 +111,69 @@ export default function ZoneTable({ zones, onZoneSelect }: ZoneTableProps) {
             </tr>
           </thead>
           <tbody className="divide-y divide-grafana-border">
-            {displayedZones.map((zone: Zone) => (
-              <tr
-                key={zone.id}
-                onClick={() => onZoneSelect?.(zone)}
-                className="hover:bg-grafana-hover transition-colors cursor-pointer"
-              >
-                <td className="px-6 py-4">
-                  <div className="font-medium text-grafana-text">{zone.name}</div>
-                </td>
-                <td className="px-6 py-4 text-center">
-                  <div className="text-sm">
-                    <span className="font-semibold text-grafana-text">{zone.connectedAPs}</span>
-                    <span className="text-grafana-text-secondary">/{zone.totalAPs}</span>
+            {displayedZones.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-6 py-12 text-center">
+                  <div className="flex flex-col items-center justify-center">
+                    <p className="text-sm text-grafana-text-secondary">No available zone</p>
                   </div>
-                  {zone.disconnectedAPs > 0 && (
-                    <div className="text-xs text-grafana-red mt-1">
-                      {zone.disconnectedAPs} offline
-                    </div>
-                  )}
-                </td>
-                <td className="px-6 py-4 text-center">
-                  <span className="text-sm font-semibold text-grafana-text">{zone.clients}</span>
-                </td>
-                <td className="px-6 py-4 text-center">
-                  <span className={`inline-flex px-3 py-1 rounded-full text-sm font-medium ${
-                    getStatusColor(zone.clientsPerAP > 3 ? 0 : 100, { good: 50, warning: 25 })
-                  }`}>
-                    {zone.clientsPerAP.toFixed(2)}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-center">
-                  <span className={`inline-flex px-3 py-1 rounded-full text-sm font-medium ${
-                    getStatusColor(zone.apAvailability, { good: 95, warning: 90 })
-                  }`}>
-                    {zone.apAvailability.toFixed(1)}%
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-center">
-                  <span className={`inline-flex px-3 py-1 rounded-full text-sm font-medium ${
-                    getStatusColor(zone.experienceScore, { good: 80, warning: 70 })
-                  }`}>
-                    {zone.experienceScore.toFixed(1)}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-center">
-                  <span className={`inline-flex px-3 py-1 rounded-full text-sm font-medium ${
-                    getStatusColor(zone.netflixScore, { good: 80, warning: 70 })
-                  }`}>
-                    {zone.netflixScore.toFixed(1)}
-                  </span>
                 </td>
               </tr>
-            ))}
+            ) : (
+              displayedZones.map((zone: Zone) => (
+                <tr
+                  key={zone.id}
+                  onClick={() => onZoneSelect?.(zone)}
+                  className="hover:bg-grafana-hover transition-colors cursor-pointer"
+                >
+                  <td className="px-6 py-4">
+                    <div className="font-medium text-grafana-text">{zone.name}</div>
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    <div className="text-sm">
+                      <span className="font-semibold text-grafana-text">{zone.connectedAPs}</span>
+                      <span className="text-grafana-text-secondary">/{zone.totalAPs}</span>
+                    </div>
+                    {zone.disconnectedAPs > 0 && (
+                      <div className="text-xs text-grafana-red mt-1">
+                        {zone.disconnectedAPs} offline
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    <span className="text-sm font-semibold text-grafana-text">{zone.clients}</span>
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    <span className={`inline-flex px-3 py-1 rounded-full text-sm font-medium ${
+                      getStatusColor(zone.clientsPerAP > 3 ? 0 : 100, { good: 50, warning: 25 })
+                    }`}>
+                      {zone.clientsPerAP.toFixed(2)}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    <span className={`inline-flex px-3 py-1 rounded-full text-sm font-medium ${
+                      getStatusColor(zone.apAvailability, { good: 95, warning: 90 })
+                    }`}>
+                      {zone.apAvailability.toFixed(1)}%
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    <span className={`inline-flex px-3 py-1 rounded-full text-sm font-medium ${
+                      getStatusColor(zone.experienceScore, { good: 80, warning: 70 })
+                    }`}>
+                      {zone.experienceScore.toFixed(1)}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    <span className={`inline-flex px-3 py-1 rounded-full text-sm font-medium ${
+                      getStatusColor(zone.netflixScore, { good: 80, warning: 70 })
+                    }`}>
+                      {zone.netflixScore.toFixed(1)}
+                    </span>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>

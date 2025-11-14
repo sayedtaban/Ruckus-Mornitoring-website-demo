@@ -1,12 +1,10 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { LogIn, Wifi, AlertCircle } from 'lucide-react';
 
-interface LoginProps {
-  onNavigateToRegister: () => void;
-}
-
-export default function Login({ onNavigateToRegister }: LoginProps) {
+export default function Login() {
+  const navigate = useNavigate();
   const [username, setUsername] = useState('admin');
   const [password, setPassword] = useState('1qaz@WSX#EDC!');
   const [error, setError] = useState('');
@@ -23,6 +21,9 @@ export default function Login({ onNavigateToRegister }: LoginProps) {
     if (signInError) {
       setError(signInError.message || 'Failed to sign in. Please check your credentials.');
       setLoading(false);
+    } else {
+      // Redirect to dashboard on successful login
+      navigate('/dashboard');
     }
   };
 
@@ -105,7 +106,7 @@ export default function Login({ onNavigateToRegister }: LoginProps) {
               <p className="text-center text-sm text-slate-600">
                 Don't have an account?{' '}
                 <button
-                  onClick={onNavigateToRegister}
+                  onClick={() => navigate('/register')}
                   className="text-blue-600 font-semibold hover:text-blue-700 transition-colors"
                 >
                   Create one

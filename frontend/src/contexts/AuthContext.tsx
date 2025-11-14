@@ -30,17 +30,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const token = localStorage.getItem('auth_token');
         if (!token) {
           setUser(null);
-          setLoading(false);
+          setLoading(false);  // Don't block - show login immediately
           return;
         }
 
-        // Verify session and get user
-        const isValid = await authApi.checkSession();
-        if (isValid) {
-          const currentUser = await authApi.getCurrentUser();
-          setUser(currentUser);
-        } else {
-          // Invalid token, clear it
+        // Set loading false first to show UI immediately
+        setLoading(false);
+
+        // Verify session in background (non-blocking)
+        try {
+          const isValid = await authApi.checkSession();
+          if (isValid) {
+            const currentUser = await authApi.getCurrentUser();
+            setUser(currentUser);
+          } else {
+            // Invalid token, clear it
+            localStorage.removeItem('auth_token');
+            setUser(null);
+          }
+        } catch (error) {
+          console.error('Auth verification error:', error);
           localStorage.removeItem('auth_token');
           setUser(null);
         }
@@ -48,7 +57,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.error('Auth initialization error:', error);
         localStorage.removeItem('auth_token');
         setUser(null);
-      } finally {
         setLoading(false);
       }
     };

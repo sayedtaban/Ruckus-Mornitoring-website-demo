@@ -1,12 +1,10 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { UserPlus, Wifi, AlertCircle, CheckCircle } from 'lucide-react';
 
-interface RegisterProps {
-  onNavigateToLogin: () => void;
-}
-
-export default function Register({ onNavigateToLogin }: RegisterProps) {
+export default function Register() {
+  const navigate = useNavigate();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -66,7 +64,7 @@ export default function Register({ onNavigateToLogin }: RegisterProps) {
       setSuccess(true);
       setLoading(false);
       setTimeout(() => {
-        onNavigateToLogin();
+        navigate('/login');
       }, 2000);
     }
   };
@@ -207,7 +205,7 @@ export default function Register({ onNavigateToLogin }: RegisterProps) {
               <p className="text-center text-sm text-slate-600">
                 Already have an account?{' '}
                 <button
-                  onClick={onNavigateToLogin}
+                  onClick={() => navigate('/login')}
                   className="text-emerald-600 font-semibold hover:text-emerald-700 transition-colors"
                 >
                   Sign in

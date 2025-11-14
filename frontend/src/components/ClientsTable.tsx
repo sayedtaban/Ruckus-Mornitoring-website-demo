@@ -5,6 +5,7 @@ interface ClientsTableProps {
   clients: ClientData[];
   hosts: HostUsageData[];
   osDistribution: OSDistributionData[];
+  loading?: boolean;
 }
 
 type ClientSortKey =
@@ -17,7 +18,7 @@ type ClientSortKey =
   | 'apMac'
   | 'dataUsage';
 
-export default function ClientsTable({ clients, hosts, osDistribution }: ClientsTableProps) {
+export default function ClientsTable({ clients, hosts, osDistribution, loading = false }: ClientsTableProps) {
   const formatDataUsage = (mb: number): string => {
     if (mb >= 1000) {
       return `${(mb / 1000).toFixed(1)}GB`;
@@ -160,7 +161,7 @@ export default function ClientsTable({ clients, hosts, osDistribution }: Clients
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-grafana-text">Clients</h2>
+        <h2 className="text-2xl font-bold text-white">Clients</h2>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -334,7 +335,7 @@ export default function ClientsTable({ clients, hosts, osDistribution }: Clients
                 placeholder="search"
                 value={search}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
-                className="px-3 py-1.5 bg-grafana-bg border border-grafana-border text-grafana-text text-sm rounded"
+                className="w-40 px-3 py-1.5 bg-grafana-bg border border-grafana-border text-grafana-text text-sm rounded"
               />
             </div>
           </div>
@@ -355,67 +356,90 @@ export default function ClientsTable({ clients, hosts, osDistribution }: Clients
               </tr>
             </thead>
             <tbody className="divide-y divide-grafana-border">
-              {paginatedClients.map((client: ClientData, index: number) => (
-                <tr key={`${client.macAddress}-${index}`} className="hover:bg-grafana-hover transition-colors">
-                  <td className="px-4 py-3 text-sm text-grafana-text">{client.hostname.substring(0, 20)}...</td>
-                  <td className="px-4 py-3 text-sm text-grafana-text-secondary">{client.modelName}</td>
-                  <td className="px-4 py-3 text-sm text-grafana-text-secondary">{client.ipAddress}</td>
-                  <td className="px-4 py-3 text-sm text-grafana-text">{client.macAddress}</td>
-                  <td className="px-4 py-3 text-sm text-grafana-text-secondary">{client.wlan}</td>
-                  <td className="px-4 py-3 text-sm text-grafana-text">{client.apName}</td>
-                  <td className="px-4 py-3 text-sm text-grafana-blue">{client.apMac}</td>
-                  <td className="px-4 py-3 text-sm text-right text-grafana-text">
-                    {formatDataUsage(client.dataUsage || 0)}
+              {loading ? (
+                <tr>
+                  <td colSpan={8} className="px-4 py-12 text-center">
+                    <div className="flex flex-col items-center justify-center">
+                      <div className="inline-flex items-center justify-center w-12 h-12 mb-4">
+                        <div className="w-8 h-8 border-4 border-grafana-border border-t-grafana-orange rounded-full animate-spin" />
+                      </div>
+                      <p className="text-sm text-grafana-text-secondary">Loading clients...</p>
+                    </div>
                   </td>
                 </tr>
-              ))}
+              ) : paginatedClients.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-4 py-12 text-center">
+                    <p className="text-sm text-grafana-text-secondary">No clients to display</p>
+                  </td>
+                </tr>
+              ) : (
+                paginatedClients.map((client: ClientData, index: number) => (
+                  <tr key={`${client.macAddress}-${index}`} className="hover:bg-grafana-hover transition-colors">
+                    <td className="px-4 py-3 text-sm text-grafana-text">{client.hostname.substring(0, 20)}...</td>
+                    <td className="px-4 py-3 text-sm text-grafana-text-secondary">{client.modelName}</td>
+                    <td className="px-4 py-3 text-sm text-grafana-text-secondary">{client.ipAddress}</td>
+                    <td className="px-4 py-3 text-sm text-grafana-text">{client.macAddress}</td>
+                    <td className="px-4 py-3 text-sm text-grafana-text-secondary">{client.wlan}</td>
+                    <td className="px-4 py-3 text-sm text-grafana-text">{client.apName}</td>
+                    <td className="px-4 py-3 text-sm text-grafana-blue">{client.apMac}</td>
+                    <td className="px-4 py-3 text-sm text-right text-grafana-text">
+                      {formatDataUsage(client.dataUsage || 0)}
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3 border-t border-grafana-border">
           <div className="text-xs text-grafana-text-secondary">
-            {totalClients === 0
+            {loading
+              ? 'Loading clients...'
+              : totalClients === 0
               ? 'No clients to display'
               : `Showing ${pageStart}-${pageEnd} of ${totalClients}`}
           </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 text-xs text-grafana-text-secondary">
-              <span>Rows per page</span>
-              <select
-                value={pageSize}
-                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
-                  setPageSize(Number(e.target.value));
-                  setPage(0);
-                }}
-                className="bg-grafana-bg border border-grafana-border text-grafana-text text-xs px-2 py-1 rounded"
-              >
-                {[10, 25, 50, 100].map(size => (
-                  <option key={size} value={size}>
-                    {size}
-                  </option>
-                ))}
-              </select>
+          {!loading && (
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 text-xs text-grafana-text-secondary">
+                <span>Rows per page</span>
+                <select
+                  value={pageSize}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                    setPageSize(Number(e.target.value));
+                    setPage(0);
+                  }}
+                  className="bg-grafana-bg border border-grafana-border text-grafana-text text-xs px-2 py-1 rounded"
+                >
+                  {[10, 25, 50, 100].map(size => (
+                    <option key={size} value={size}>
+                      {size}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-grafana-text-secondary">
+                <button
+                  className="px-2 py-1 border border-grafana-border rounded disabled:opacity-40 hover:bg-grafana-hover transition-colors"
+                  onClick={() => setPage(prev => Math.max(prev - 1, 0))}
+                  disabled={currentPage === 0}
+                >
+                  Prev
+                </button>
+                <span>
+                  Page {totalClients === 0 ? 0 : currentPage + 1} of {totalClients === 0 ? 0 : totalPages}
+                </span>
+                <button
+                  className="px-2 py-1 border border-grafana-border rounded disabled:opacity-40 hover:bg-grafana-hover transition-colors"
+                  onClick={() => setPage(prev => Math.min(prev + 1, totalPages - 1))}
+                  disabled={currentPage >= totalPages - 1 || totalClients === 0}
+                >
+                  Next
+                </button>
+              </div>
             </div>
-            <div className="flex items-center gap-2 text-xs text-grafana-text-secondary">
-              <button
-                className="px-2 py-1 border border-grafana-border rounded disabled:opacity-40 hover:bg-grafana-hover transition-colors"
-                onClick={() => setPage(prev => Math.max(prev - 1, 0))}
-                disabled={currentPage === 0}
-              >
-                Prev
-              </button>
-              <span>
-                Page {totalClients === 0 ? 0 : currentPage + 1} of {totalClients === 0 ? 0 : totalPages}
-              </span>
-              <button
-                className="px-2 py-1 border border-grafana-border rounded disabled:opacity-40 hover:bg-grafana-hover transition-colors"
-                onClick={() => setPage(prev => Math.min(prev + 1, totalPages - 1))}
-                disabled={currentPage >= totalPages - 1 || totalClients === 0}
-              >
-                Next
-              </button>
-            </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

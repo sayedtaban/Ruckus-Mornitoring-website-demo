@@ -126,8 +126,8 @@ export default function ZoneDashboard({ zone }: ZoneDashboardProps) {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-slate-900 mb-2">{zone.name}</h2>
-        <p className="text-slate-600">Detailed zone performance and health metrics</p>
+        <h2 className="text-2xl font-bold text-white mb-2">{zone.name}</h2>
+        <p className="text-white">Detailed zone performance and health metrics</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -166,28 +166,28 @@ export default function ZoneDashboard({ zone }: ZoneDashboardProps) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">RF Health</h3>
+        <div className="bg-grafana-panel border border-grafana-border rounded p-6">
+          <h3 className="text-lg font-semibold text-grafana-text mb-4">RF Health</h3>
           <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+            <div className="flex items-center justify-between p-4 bg-grafana-bg rounded-lg">
               <div className="flex items-center gap-3">
-                <Signal className="w-5 h-5 text-slate-600" />
-                <span className="font-medium text-slate-700">RxDesense</span>
+                <Signal className="w-5 h-5 text-grafana-text-secondary" />
+                <span className="font-medium text-grafana-text">RxDesense</span>
               </div>
               <span className={`text-lg font-bold ${
-                zone.rxDesense > 10 ? 'text-red-600' : 'text-emerald-600'
+                zone.rxDesense > 10 ? 'text-grafana-red' : 'text-grafana-green'
               }`}>
                 {zone.rxDesense.toFixed(1)}%
               </span>
             </div>
 
-            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+            <div className="flex items-center justify-between p-4 bg-grafana-bg rounded-lg">
               <div className="flex items-center gap-3">
-                <Radio className="w-5 h-5 text-slate-600" />
-                <span className="font-medium text-slate-700">Channel Utilization</span>
+                <Radio className="w-5 h-5 text-grafana-text-secondary" />
+                <span className="font-medium text-grafana-text">Channel Utilization</span>
               </div>
               <span className={`text-lg font-bold ${
-                zone.utilization > 70 ? 'text-amber-600' : 'text-emerald-600'
+                zone.utilization > 70 ? 'text-grafana-yellow' : 'text-grafana-green'
               }`}>
                 {zone.utilization.toFixed(1)}%
               </span>
@@ -205,24 +205,24 @@ export default function ZoneDashboard({ zone }: ZoneDashboardProps) {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">Capacity Analysis</h3>
+        <div className="bg-grafana-panel border border-grafana-border rounded p-6">
+          <h3 className="text-lg font-semibold text-grafana-text mb-4">Capacity Analysis</h3>
           <div className="space-y-4">
             <div>
               <div className="flex justify-between text-sm mb-2">
-                <span className="text-slate-600">Client Density</span>
-                <span className="font-semibold text-slate-900">
+                <span className="text-grafana-text-secondary">Client Density</span>
+                <span className="font-semibold text-grafana-text">
                   {zone.clientsPerAP.toFixed(2)} / 3.0 recommended
                 </span>
               </div>
-              <div className="h-3 bg-slate-200 rounded-full overflow-hidden">
+              <div className="h-3 bg-grafana-bg rounded-full overflow-hidden">
                 <div
                   className={`h-full transition-all ${
                     zone.clientsPerAP > 4
-                      ? 'bg-red-500'
+                      ? 'bg-grafana-red'
                       : zone.clientsPerAP > 3
-                      ? 'bg-amber-500'
-                      : 'bg-emerald-500'
+                      ? 'bg-grafana-yellow'
+                      : 'bg-grafana-green'
                   }`}
                   style={{ width: `${Math.min((zone.clientsPerAP / 5) * 100, 100)}%` }}
                 />
@@ -231,14 +231,14 @@ export default function ZoneDashboard({ zone }: ZoneDashboardProps) {
 
             <div>
               <div className="flex justify-between text-sm mb-2">
-                <span className="text-slate-600">AP Utilization</span>
-                <span className="font-semibold text-slate-900">
+                <span className="text-grafana-text-secondary">AP Utilization</span>
+                <span className="font-semibold text-grafana-text">
                   {((zone.connectedAPs / zone.totalAPs) * 100).toFixed(0)}%
                 </span>
               </div>
-              <div className="h-3 bg-slate-200 rounded-full overflow-hidden">
+              <div className="h-3 bg-grafana-bg rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-blue-500 transition-all"
+                  className="h-full bg-grafana-blue transition-all"
                   style={{ width: `${(zone.connectedAPs / zone.totalAPs) * 100}%` }}
                 />
               </div>

@@ -1,4 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { LayoutDashboard, Video, AlertCircle, Home, Search, Bell, Settings, User as UserIcon, LogOut } from 'lucide-react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './pages/Login';
@@ -11,109 +13,69 @@ import AnomalyDashboard from './views/AnomalyDashboard';
 import ClientsTable from './components/ClientsTable';
 import ChatWidget from './components/ChatWidget';
 import {
-  venueApi,
-  causeCodesApi,
-  anomaliesApi,
-  clientsApi,
-  hostsApi,
-  osDistributionApi,
-  loadApi
-} from './lib/api';
+  useVenueData,
+  useCauseCodesData,
+  useAnomaliesData,
+  useClientsData,
+  useHostsData,
+  useOSDistributionData,
+  useLoadData
+} from './hooks/useDashboardData';
 import {
-  VenueData,
-  CauseCodeData,
-  AnomalyData,
-  ClientData,
-  HostUsageData,
-  OSDistributionData,
   BandLoadData,
   Zone
 } from './types';
 
-type ClientListResponse = {
-  data: ClientData[];
-  pagination: {
-    total: number;
-    limit: number;
-    offset: number;
-    hasMore: boolean;
-  };
-};
+// Create QueryClient with 20-minute cache configuration
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 20 * 60 * 1000, // 20 minutes - data is fresh for 20 minutes
+      gcTime: 20 * 60 * 1000, // 20 minutes - cache is kept for 20 minutes
+      refetchInterval: 20 * 60 * 1000, // Refetch every 20 minutes
+      refetchOnWindowFocus: false, // Don't refetch on window focus
+      refetchOnMount: false, // Use cached data if available
+      retry: 2, // Retry failed requests 2 times
+    },
+  },
+});
 
 type DashboardView = 'zone' | 'venue' | 'netflix' | 'anomaly' | 'clients' | 'profile';
-type AuthView = 'login' | 'register';
 
 function Dashboard() {
+  const navigate = useNavigate();
   const [activeView, setActiveView] = useState<DashboardView>('venue');
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
   const { username, signOut } = useAuth();
 
-  // State for API data
-  const [venueData, setVenueData] = useState<VenueData | null>(null);
-  const [causeCodeData, setCauseCodeData] = useState<CauseCodeData[]>([]);
-  const [anomalies, setAnomalies] = useState<AnomalyData[]>([]);
-  const [clients, setClients] = useState<ClientData[]>([]);
-  const [hosts, setHosts] = useState<HostUsageData[]>([]);
-  const [osDistribution, setOsDistribution] = useState<OSDistributionData[]>([]);
-  const [loadData, setLoadData] = useState<BandLoadData[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Use React Query hooks to fetch all data with 20-minute cache
+  const { data: venueData, isLoading: venueLoading } = useVenueData();
+  const { data: causeCodeData = [] } = useCauseCodesData();
+  const { data: anomalies = [] } = useAnomaliesData();
+  const { data: clientsResponse, isLoading: clientsLoading } = useClientsData();
+  const { data: hosts = [] } = useHostsData();
+  const { data: osDistribution = [] } = useOSDistributionData();
+  const { data: loadResponse } = useLoadData();
 
-  // Fetch data from API
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        setLoading(true);
+  // Extract clients from response
+  const clients = useMemo(() => {
+    if (!clientsResponse?.data) return [];
+    return Array.isArray(clientsResponse.data) ? clientsResponse.data : [];
+  }, [clientsResponse]);
 
-        // Fetch all data in parallel
-        const [
-          venue,
-          causeCodes,
-          anomaliesData,
-          clientsData,
-          hostsData,
-          osDist,
-          load
-        ] = await Promise.all([
-          venueApi.getVenue(),
-          causeCodesApi.getCauseCodes(),
-          anomaliesApi.getAnomalies(),
-          clientsApi.getClients(),
-          hostsApi.getHosts(),
-          osDistributionApi.getOSDistribution(),
-          loadApi.getLoad()
-        ]);
-
-        // Set state with fetched or fallback data
-        setVenueData(venue as VenueData);
-        setCauseCodeData(Array.isArray(causeCodes) ? (causeCodes as CauseCodeData[]) : []);
-        setAnomalies(Array.isArray(anomaliesData) ? (anomaliesData as AnomalyData[]) : []);
-        const clientList = clientsData as ClientListResponse;
-        setClients(Array.isArray(clientList?.data) ? clientList.data : []);
-        setHosts(Array.isArray(hostsData) ? (hostsData as HostUsageData[]) : []);
-        setOsDistribution(Array.isArray(osDist) ? (osDist as OSDistributionData[]) : []);
-        if (Array.isArray((load as { bands: BandLoadData[] })?.bands)) {
-          setLoadData((load as { bands: BandLoadData[] }).bands);
-        } else if (Array.isArray(load)) {
-          setLoadData(load as BandLoadData[]);
-        } else {
-          setLoadData([]);
-        }
-      } catch (err) {
-        console.error('Error fetching data:', err);
-        setVenueData(null);
-        setCauseCodeData([]);
-        setAnomalies([]);
-        setClients([]);
-        setHosts([]);
-        setOsDistribution([]);
-        setLoadData([]);
-      } finally {
-        setLoading(false);
-      }
+  // Extract load data from response
+  const loadData = useMemo(() => {
+    if (!loadResponse) return [];
+    if (Array.isArray((loadResponse as { bands: BandLoadData[] })?.bands)) {
+      return (loadResponse as { bands: BandLoadData[] }).bands;
+    } else if (Array.isArray(loadResponse)) {
+      return loadResponse as BandLoadData[];
     }
+    return [];
+  }, [loadResponse]);
 
-    fetchData();
-  }, []);
+  // Check if any query is still loading
+  const loading = venueLoading;
 
   const selectedZone = useMemo(() => {
     if (!venueData?.zones?.length) return null;
@@ -160,7 +122,7 @@ function Dashboard() {
     setActiveView('zone');
   };
 
-  // Show loading state
+  // Show loading dashboard while fetching all data
   if (loading) {
     return (
       <div className="min-h-screen bg-grafana-bg flex items-center justify-center">
@@ -168,7 +130,8 @@ function Dashboard() {
           <div className="inline-flex items-center justify-center w-16 h-16 mb-4">
             <div className="w-8 h-8 border-4 border-grafana-border border-t-grafana-orange rounded-full animate-spin" />
           </div>
-          <p className="text-grafana-text-secondary font-medium">Loading dashboard...</p>
+          <p className="text-grafana-text-secondary font-medium text-lg mb-2">Loading Dashboard</p>
+          <p className="text-grafana-text-tertiary text-sm">Fetching network data...</p>
         </div>
       </div>
     );
@@ -273,7 +236,10 @@ function Dashboard() {
                 </div>
 
                 <button
-                  onClick={signOut}
+                  onClick={() => {
+                    signOut();
+                    navigate('/login');
+                  }}
                   className="p-2 text-grafana-text-secondary hover:text-grafana-text hover:bg-grafana-hover rounded transition-colors"
                   title="Sign Out"
                 >
@@ -297,7 +263,7 @@ function Dashboard() {
           )}
           {activeView === 'clients' && (
             <div className="p-6">
-              <ClientsTable clients={clients} hosts={hosts} osDistribution={osDistribution} />
+              <ClientsTable clients={clients} hosts={hosts} osDistribution={osDistribution} loading={clientsLoading} />
             </div>
           )}
           {activeView === 'netflix' && (
@@ -316,8 +282,8 @@ function Dashboard() {
   );
 }
 
-function AuthWrapper() {
-  const [authView, setAuthView] = useState<AuthView>('login');
+// Protected Route Component
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
 
   if (loading) {
@@ -334,21 +300,69 @@ function AuthWrapper() {
   }
 
   if (!user) {
-    return authView === 'login' ? (
-      <Login onNavigateToRegister={() => setAuthView('register')} />
-    ) : (
-      <Register onNavigateToLogin={() => setAuthView('login')} />
+    return <Navigate to="/login" replace />;
+  }
+
+  return <>{children}</>;
+}
+
+// Public Route Component (redirect to dashboard if already logged in)
+function PublicRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-grafana-bg flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 mb-4">
+            <div className="w-8 h-8 border-4 border-grafana-border border-t-grafana-orange rounded-full animate-spin" />
+          </div>
+          <p className="text-grafana-text-secondary font-medium">Loading...</p>
+        </div>
+      </div>
     );
   }
 
-  return <Dashboard />;
+  if (user) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return <>{children}</>;
+}
+
+// Router Component
+function AppRouter() {
+  return (
+    <Routes>
+      <Route path="/login" element={
+        <PublicRoute>
+          <Login />
+        </PublicRoute>
+      } />
+      <Route path="/register" element={
+        <PublicRoute>
+          <Register />
+        </PublicRoute>
+      } />
+      <Route path="/dashboard" element={
+        <ProtectedRoute>
+          <Dashboard />
+        </ProtectedRoute>
+      } />
+      <Route path="/" element={<Navigate to="/login" replace />} />
+    </Routes>
+  );
 }
 
 function App() {
   return (
-    <AuthProvider>
-      <AuthWrapper />
-    </AuthProvider>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <BrowserRouter>
+        <AppRouter />
+        </BrowserRouter>
+      </AuthProvider>
+    </QueryClientProvider>
   );
 }
 
