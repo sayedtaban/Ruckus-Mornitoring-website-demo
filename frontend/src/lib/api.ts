@@ -2,8 +2,34 @@
  * API client for communicating with the backend FastAPI server
  */
 
-// Use proxy in development, direct URL in production
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? '/api' : 'http://localhost:3001/api');
+// Use proxy in development when on localhost, direct URL when on network IP
+function getApiBaseUrl(): string {
+  // If explicitly set via environment variable, use it
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL;
+  }
+  
+  // In production, use the configured URL
+  if (!import.meta.env.DEV) {
+    return 'http://localhost:3001/api';
+  }
+  
+  // In development, check if we're accessing via network IP
+  const hostname = window.location.hostname;
+  const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '';
+  
+  if (isLocalhost) {
+    // Use proxy when on localhost
+    return '/api';
+  } else {
+    // When accessed via network IP, use the backend's network address
+    // Replace with your actual backend server IP or use the same hostname
+    const backendPort = '3001';
+    return `http://${hostname}:${backendPort}/api`;
+  }
+}
+
+const API_BASE_URL = getApiBaseUrl();
 
 /**
  * Get stored auth token
