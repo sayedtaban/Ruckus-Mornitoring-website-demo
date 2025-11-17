@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ClientData, HostUsageData, OSDistributionData, VenueData, Zone } from '../types';
+import { ClientData, HostUsageData, OSDistributionData, VenueData, Zone, AccessPoint } from '../types';
+import { accessPointsApi } from '../lib/api';
 
 interface ClientsTableProps {
   clients: ClientData[];
@@ -22,6 +23,10 @@ type ClientSortKey =
 export default function ClientsTable({ clients, hosts, osDistribution, loading = false, venueData }: ClientsTableProps) {
   // Zone filter state
   const [zoneFilter, setZoneFilter] = useState<string>('all');
+  
+  // State for AP data and mapping
+  const [apMacToZoneMap, setApMacToZoneMap] = useState<Map<string, string>>(new Map());
+  const [apsLoading, setApsLoading] = useState<boolean>(true);
 
   // Get zone options from venue data
   const zoneOptions = useMemo(() => {
@@ -32,21 +37,105 @@ export default function ClientsTable({ clients, hosts, osDistribution, loading =
     ];
   }, [venueData]);
 
-  // Filter clients by selected zone
-  // Note: This is a client-side filter. For proper zone filtering, 
-  // the API should be called with zoneId parameter when zoneFilter changes.
-  // Since clients don't have zoneId in the data structure, we'll show all clients for now.
-  // To properly implement: use React Query to fetch clients with zoneId parameter.
+  // Fetch APs for all zones and build AP MAC to Zone ID mapping
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function fetchAllAPs() {
+      if (!venueData?.zones || venueData.zones.length === 0) {
+        setApsLoading(false);
+        return;
+      }
+
+      try {
+        setApsLoading(true);
+        const map = new Map<string, string>();
+
+        // First, try to use AP data from zone if available (from venueData)
+        venueData.zones.forEach((zone: Zone) => {
+          if (zone.apData?.list && Array.isArray(zone.apData.list)) {
+            zone.apData.list.forEach((ap: AccessPoint) => {
+              if (ap.mac) {
+                map.set(ap.mac.toLowerCase(), zone.id);
+              }
+            });
+          }
+        });
+
+        // If we don't have AP data in venueData, try fetching from API
+        // Use Promise.allSettled to handle individual failures gracefully
+        const apPromises = venueData.zones.map(async (zone: Zone) => {
+          // Skip if we already have AP data for this zone
+          if (zone.apData?.list && zone.apData.list.length > 0) {
+            return;
+          }
+
+          try {
+            const apData = await accessPointsApi.getAccessPoints(zone.id);
+            if (apData && Array.isArray(apData)) {
+              // Handle array response
+              apData.forEach((ap: AccessPoint) => {
+                if (ap.mac) {
+                  map.set(ap.mac.toLowerCase(), zone.id);
+                }
+              });
+            } else if (apData && typeof apData === 'object' && 'list' in apData) {
+              // Handle APData response with list
+              const apList = (apData as { list: AccessPoint[] }).list;
+              apList.forEach((ap: AccessPoint) => {
+                if (ap.mac) {
+                  map.set(ap.mac.toLowerCase(), zone.id);
+                }
+              });
+            }
+          } catch (err) {
+            // Silently skip zones that fail - backend may not have AP data
+            // Zone filtering will still work for zones we successfully fetched
+          }
+        });
+
+        // Use allSettled to continue even if some requests fail
+        await Promise.allSettled(apPromises);
+
+        if (!isCancelled) {
+          setApMacToZoneMap(map);
+          setApsLoading(false);
+        }
+      } catch (err) {
+        // If everything fails, still set loading to false so UI can render
+        if (!isCancelled) {
+          setApsLoading(false);
+        }
+      }
+    }
+
+    fetchAllAPs();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [venueData]);
+
+  // Filter clients by selected zone using AP MAC to Zone mapping
   const zoneFilteredClients = useMemo(() => {
     if (zoneFilter === 'all') {
       return clients;
     }
-    // TODO: Implement proper zone filtering by:
-    // 1. Using React Query to fetch clients with zoneId parameter
-    // 2. Or matching clients to zones via AP data
-    // For now, return all clients (filtering will be done server-side when API is called)
-    return clients;
-  }, [clients, zoneFilter]);
+    
+    // If AP mapping is not ready, return all clients
+    if (apsLoading || apMacToZoneMap.size === 0) {
+      return clients;
+    }
+
+    // Filter clients by matching their AP MAC to the selected zone
+    return clients.filter((client: ClientData) => {
+      if (!client.apMac) {
+        return false; // Skip clients without AP MAC
+      }
+      const clientZoneId = apMacToZoneMap.get(client.apMac.toLowerCase());
+      return clientZoneId === zoneFilter;
+    });
+  }, [clients, zoneFilter, apMacToZoneMap, apsLoading]);
 
   // Calculate hosts from zone-filtered clients - show top 10
   const filteredHosts = useMemo(() => {
