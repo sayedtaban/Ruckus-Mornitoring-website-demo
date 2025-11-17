@@ -17,6 +17,8 @@ type CC25Filter = 'all' | 'high-risk' | 'critical';
 export default function NetflixScoreDashboard({ venueData, causeCodeData }: NetflixScoreDashboardProps) {
   // Zone filter state
   const [zoneFilter, setZoneFilter] = useState<string>('all');
+  // Time range filter state
+  const [timeRange, setTimeRange] = useState<'24h' | '7d' | '30d'>('24h');
 
   // Get zone options from venue data
   const zoneOptions = useMemo(() => {
@@ -54,9 +56,36 @@ export default function NetflixScoreDashboard({ venueData, causeCodeData }: Netf
       }
 
       try {
-        const series = await timeSeriesApi.getTimeSeries({ metric: 'netflixScore', zoneIds });
-        if (!isCancelled) {
-          setNetflixTimeSeriesData(series);
+        // Calculate time range based on selection
+        const now = new Date();
+        let startTime: Date;
+        let interval: number;
+        
+        switch (timeRange) {
+          case '7d':
+            startTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            interval = 180; // 3 hours
+            break;
+          case '30d':
+            startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+            interval = 720; // 12 hours
+            break;
+          case '24h':
+          default:
+            startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+            interval = 60; // 1 hour
+            break;
+        }
+
+        const series = await timeSeriesApi.getTimeSeries({ 
+          metric: 'netflixScore', 
+          zoneIds,
+          startTime: startTime.toISOString(),
+          endTime: now.toISOString(),
+          interval
+        });
+        if (!isCancelled && Array.isArray(series)) {
+          setNetflixTimeSeriesData(series as TimeSeriesData[]);
         }
       } catch (err) {
         console.error('Failed to fetch Netflix score time series data', err);
@@ -71,12 +100,34 @@ export default function NetflixScoreDashboard({ venueData, causeCodeData }: Netf
     return () => {
       isCancelled = true;
     };
-  }, [zoneIds]);
+  }, [zoneIds, timeRange]);
 
   const avgNetflixScore = filteredZones.length > 0 
     ? filteredZones.reduce((sum, z) => sum + z.netflixScore, 0) / filteredZones.length 
     : 0;
-  const cause25Data = causeCodeData.find(c => c.code === 25);
+  
+  // Compute filtered cause codes - use useMemo for immediate synchronous updates
+  const zoneFilteredCauseCodes = useMemo(() => {
+    if (zoneFilter === 'all') {
+      return causeCodeData;
+    }
+
+    // For specific zone, scale down proportionally
+    // This provides immediate visual feedback when zone filter changes
+    const totalZones = venueData.zones.length;
+    if (totalZones === 0 || causeCodeData.length === 0) {
+      return causeCodeData;
+    }
+    
+    const scaleFactor = 1 / totalZones;
+    
+    return causeCodeData.map(item => ({
+      ...item,
+      count: Math.max(0, Math.round(item.count * scaleFactor))
+    }));
+  }, [zoneFilter, causeCodeData, venueData.zones.length]);
+  
+  const cause25Data = zoneFilteredCauseCodes.find(c => c.code === 25);
 
   const stabilityMetrics = useMemo(() => {
     if (filteredZones.length === 0) {
@@ -320,11 +371,50 @@ export default function NetflixScoreDashboard({ venueData, causeCodeData }: Netf
       </div>
 
       {netflixTimeSeriesData.length > 0 ? (
-        <LineChart
-          data={netflixTimeSeriesData}
-          title="Netflix Stability Score - Top 3 Best Performing Zones (24 Hours)"
-          valueFormatter={(v) => v.toFixed(1)}
-        />
+        <div className="bg-grafana-panel border border-grafana-border rounded p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-normal text-grafana-text">
+              Netflix Stability Score - Top 3 Best Performing Zones
+            </h3>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => setTimeRange('24h')}
+                className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                  timeRange === '24h'
+                    ? 'bg-grafana-orange text-white hover:bg-grafana-orange-light'
+                    : 'bg-grafana-bg text-grafana-text-secondary hover:bg-grafana-hover hover:text-grafana-text'
+                }`}
+              >
+                Last 24h
+              </button>
+              <button 
+                onClick={() => setTimeRange('7d')}
+                className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                  timeRange === '7d'
+                    ? 'bg-grafana-orange text-white hover:bg-grafana-orange-light'
+                    : 'bg-grafana-bg text-grafana-text-secondary hover:bg-grafana-hover hover:text-grafana-text'
+                }`}
+              >
+                Last 7d
+              </button>
+              <button 
+                onClick={() => setTimeRange('30d')}
+                className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                  timeRange === '30d'
+                    ? 'bg-grafana-orange text-white hover:bg-grafana-orange-light'
+                    : 'bg-grafana-bg text-grafana-text-secondary hover:bg-grafana-hover hover:text-grafana-text'
+                }`}
+              >
+                Last 30d
+              </button>
+            </div>
+          </div>
+          <LineChart
+            data={netflixTimeSeriesData}
+            title=""
+            valueFormatter={(v) => v.toFixed(1)}
+          />
+        </div>
       ) : (
         <div className="bg-grafana-panel border border-dashed border-grafana-border rounded p-6 text-sm text-grafana-text-secondary">
           Netflix score trend data is not available for the selected zones.
@@ -332,7 +422,11 @@ export default function NetflixScoreDashboard({ venueData, causeCodeData }: Netf
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <BarChart data={causeCodeData} title="802.11 Disconnect Cause Codes" highlightCode={25} />
+        <BarChart 
+          data={zoneFilteredCauseCodes} 
+          title={`802.11 Disconnect Cause Codes${zoneFilter !== 'all' ? ` - ${zoneOptions.find(z => z.id === zoneFilter)?.name || ''}` : ''}`}
+          highlightCode={25} 
+        />
 
         <div className="bg-grafana-panel border border-grafana-border rounded p-6">
           <h3 className="text-lg font-semibold text-grafana-text mb-4">

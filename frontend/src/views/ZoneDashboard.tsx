@@ -18,16 +18,56 @@ export default function ZoneDashboard({ zone }: ZoneDashboardProps) {
   const [apData, setApData] = useState<APData | null>(null);
   const [apLoading, setApLoading] = useState(false);
   const [apError, setApError] = useState<string | null>(null);
+  const [timeRange, setTimeRange] = useState<'24h' | '7d' | '30d'>('24h');
 
   useEffect(() => {
     let isCancelled = false;
 
     async function fetchSeries() {
       try {
+        // Calculate time range based on selection
+        const now = new Date();
+        let startTime: Date;
+        let interval: number;
+        
+        switch (timeRange) {
+          case '7d':
+            startTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            interval = 180; // 3 hours
+            break;
+          case '30d':
+            startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+            interval = 720; // 12 hours
+            break;
+          case '24h':
+          default:
+            startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+            interval = 60; // 1 hour
+            break;
+        }
+
         const [experience, utilization, netflix] = await Promise.all([
-          timeSeriesApi.getTimeSeries({ metric: 'experienceScore', zoneIds: zone.id }),
-          timeSeriesApi.getTimeSeries({ metric: 'utilization', zoneIds: zone.id }),
-          timeSeriesApi.getTimeSeries({ metric: 'netflixScore', zoneIds: zone.id })
+          timeSeriesApi.getTimeSeries({ 
+            metric: 'experienceScore', 
+            zoneIds: zone.id,
+            startTime: startTime.toISOString(),
+            endTime: now.toISOString(),
+            interval
+          }),
+          timeSeriesApi.getTimeSeries({ 
+            metric: 'utilization', 
+            zoneIds: zone.id,
+            startTime: startTime.toISOString(),
+            endTime: now.toISOString(),
+            interval
+          }),
+          timeSeriesApi.getTimeSeries({ 
+            metric: 'netflixScore', 
+            zoneIds: zone.id,
+            startTime: startTime.toISOString(),
+            endTime: now.toISOString(),
+            interval
+          })
         ]);
 
         if (!isCancelled) {
@@ -50,7 +90,7 @@ export default function ZoneDashboard({ zone }: ZoneDashboardProps) {
     return () => {
       isCancelled = true;
     };
-  }, [zone.id]);
+  }, [zone.id, timeRange]);
 
   useEffect(() => {
     setApPage(0);
@@ -258,43 +298,154 @@ export default function ZoneDashboard({ zone }: ZoneDashboardProps) {
       </div>
 
       {experienceSeries.length > 0 ? (
-        <LineChart
-          data={experienceSeries}
-          title="Experience Score Trend (24 Hours)"
-          valueFormatter={(v) => v.toFixed(1)}
-          showLegend={false}
-        />
+        <div className="bg-grafana-panel border border-grafana-border rounded p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-normal text-grafana-text">Experience Score Trend</h3>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => setTimeRange('24h')}
+                className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                  timeRange === '24h'
+                    ? 'bg-grafana-orange text-white hover:bg-grafana-orange-light'
+                    : 'bg-grafana-bg text-grafana-text-secondary hover:bg-grafana-hover hover:text-grafana-text'
+                }`}
+              >
+                Last 24h
+              </button>
+              <button 
+                onClick={() => setTimeRange('7d')}
+                className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                  timeRange === '7d'
+                    ? 'bg-grafana-orange text-white hover:bg-grafana-orange-light'
+                    : 'bg-grafana-bg text-grafana-text-secondary hover:bg-grafana-hover hover:text-grafana-text'
+                }`}
+              >
+                Last 7d
+              </button>
+              <button 
+                onClick={() => setTimeRange('30d')}
+                className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                  timeRange === '30d'
+                    ? 'bg-grafana-orange text-white hover:bg-grafana-orange-light'
+                    : 'bg-grafana-bg text-grafana-text-secondary hover:bg-grafana-hover hover:text-grafana-text'
+                }`}
+              >
+                Last 30d
+              </button>
+            </div>
+          </div>
+          <LineChart
+            data={experienceSeries}
+            title=""
+            valueFormatter={(v) => v.toFixed(1)}
+            showLegend={false}
+          />
+        </div>
       ) : (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 text-sm text-slate-500">
+        <div className="bg-grafana-panel border border-dashed border-grafana-border rounded p-6 text-sm text-grafana-text-secondary">
           No experience score time series available for this zone.
         </div>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {utilizationSeries.length > 0 ? (
-          <LineChart
-            data={utilizationSeries}
-            title="Channel Utilization (24 Hours)"
-            height={250}
-            valueFormatter={(v) => `${v.toFixed(1)}%`}
-            showLegend={false}
-          />
+          <div className="bg-grafana-panel border border-grafana-border rounded p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-normal text-grafana-text">Channel Utilization</h3>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => setTimeRange('24h')}
+                  className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                    timeRange === '24h'
+                      ? 'bg-grafana-orange text-white hover:bg-grafana-orange-light'
+                      : 'bg-grafana-bg text-grafana-text-secondary hover:bg-grafana-hover hover:text-grafana-text'
+                  }`}
+                >
+                  Last 24h
+                </button>
+                <button 
+                  onClick={() => setTimeRange('7d')}
+                  className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                    timeRange === '7d'
+                      ? 'bg-grafana-orange text-white hover:bg-grafana-orange-light'
+                      : 'bg-grafana-bg text-grafana-text-secondary hover:bg-grafana-hover hover:text-grafana-text'
+                  }`}
+                >
+                  Last 7d
+                </button>
+                <button 
+                  onClick={() => setTimeRange('30d')}
+                  className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                    timeRange === '30d'
+                      ? 'bg-grafana-orange text-white hover:bg-grafana-orange-light'
+                      : 'bg-grafana-bg text-grafana-text-secondary hover:bg-grafana-hover hover:text-grafana-text'
+                  }`}
+                >
+                  Last 30d
+                </button>
+              </div>
+            </div>
+            <LineChart
+              data={utilizationSeries}
+              title=""
+              height={250}
+              valueFormatter={(v) => `${v.toFixed(1)}%`}
+              showLegend={false}
+            />
+          </div>
         ) : (
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 text-sm text-slate-500">
+          <div className="bg-grafana-panel border border-dashed border-grafana-border rounded p-6 text-sm text-grafana-text-secondary">
             No utilization time series available for this zone.
           </div>
         )}
 
         {netflixSeries.length > 0 ? (
-          <LineChart
-            data={netflixSeries}
-            title="Netflix Experience (24 Hours)"
-            height={250}
-            valueFormatter={(v) => v.toFixed(1)}
-            showLegend={false}
-          />
+          <div className="bg-grafana-panel border border-grafana-border rounded p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-normal text-grafana-text">Netflix Experience</h3>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => setTimeRange('24h')}
+                  className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                    timeRange === '24h'
+                      ? 'bg-grafana-orange text-white hover:bg-grafana-orange-light'
+                      : 'bg-grafana-bg text-grafana-text-secondary hover:bg-grafana-hover hover:text-grafana-text'
+                  }`}
+                >
+                  Last 24h
+                </button>
+                <button 
+                  onClick={() => setTimeRange('7d')}
+                  className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                    timeRange === '7d'
+                      ? 'bg-grafana-orange text-white hover:bg-grafana-orange-light'
+                      : 'bg-grafana-bg text-grafana-text-secondary hover:bg-grafana-hover hover:text-grafana-text'
+                  }`}
+                >
+                  Last 7d
+                </button>
+                <button 
+                  onClick={() => setTimeRange('30d')}
+                  className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                    timeRange === '30d'
+                      ? 'bg-grafana-orange text-white hover:bg-grafana-orange-light'
+                      : 'bg-grafana-bg text-grafana-text-secondary hover:bg-grafana-hover hover:text-grafana-text'
+                  }`}
+                >
+                  Last 30d
+                </button>
+              </div>
+            </div>
+            <LineChart
+              data={netflixSeries}
+              title=""
+              height={250}
+              valueFormatter={(v) => v.toFixed(1)}
+              showLegend={false}
+            />
+          </div>
         ) : (
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 text-sm text-slate-500">
+          <div className="bg-grafana-panel border border-dashed border-grafana-border rounded p-6 text-sm text-grafana-text-secondary">
             No Netflix score time series available for this zone.
           </div>
         )}

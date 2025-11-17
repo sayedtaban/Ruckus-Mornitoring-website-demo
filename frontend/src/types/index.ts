@@ -71,6 +71,8 @@ export interface CauseCodeData {
   description: string;
   count: number;
   impactScore: number;
+  affectedZone?: string; // Optional zone name where this cause code occurred
+  zoneId?: string; // Optional zone ID
 }
 
 export interface TimeSeriesData {

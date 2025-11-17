@@ -36,6 +36,7 @@ export default function VenueDashboard({ venueData, onZoneSelect, loadData }: Ve
   }, [venueData.zones]);
 
   const [domainFilter, setDomainFilter] = useState<string>('total');
+  const [timeRange, setTimeRange] = useState<'24h' | '7d' | '30d'>('24h');
 
   const [experienceSeries, setExperienceSeries] = useState<TimeSeriesData[]>([]);
   const [historicalData, setHistoricalData] = useState<{
@@ -156,10 +157,43 @@ export default function VenueDashboard({ venueData, onZoneSelect, loadData }: Ve
       }
 
       try {
-        const experience = await timeSeriesApi.getTimeSeries({ metric: 'experienceScore', zoneIds });
+        // Calculate time range based on selection
+        const now = new Date();
+        let startTime: Date;
+        
+        switch (timeRange) {
+          case '7d':
+            startTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            break;
+          case '30d':
+            startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+            break;
+          case '24h':
+          default:
+            startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+            break;
+        }
 
-        if (!isCancelled) {
+        // Calculate interval based on time range (more data points for longer ranges)
+        let interval = 60; // Default 60 minutes (1 hour)
+        if (timeRange === '7d') {
+          interval = 180; // 3 hours for 7 days
+        } else if (timeRange === '30d') {
+          interval = 720; // 12 hours for 30 days
+        }
+
+        const experience = await timeSeriesApi.getTimeSeries({ 
+          metric: 'experienceScore', 
+          zoneIds,
+          startTime: startTime.toISOString(),
+          endTime: now.toISOString(),
+          interval
+        });
+
+        if (!isCancelled && Array.isArray(experience)) {
           setExperienceSeries(experience as TimeSeriesData[]);
+        } else if (!isCancelled) {
+          setExperienceSeries([]);
         }
       } catch (err) {
         console.error('Failed to fetch venue time series data', err);
@@ -174,7 +208,7 @@ export default function VenueDashboard({ venueData, onZoneSelect, loadData }: Ve
     return () => {
       isCancelled = true;
     };
-  }, [zoneIds]);
+  }, [zoneIds, timeRange]);
 
   // Fetch historical data from 24 hours ago
   useEffect(() => {
@@ -344,13 +378,34 @@ export default function VenueDashboard({ venueData, onZoneSelect, loadData }: Ve
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-normal text-grafana-text">Network Performance Trends</h3>
           <div className="flex items-center gap-2">
-            <button className="px-3 py-1 bg-grafana-orange text-white text-xs font-medium rounded hover:bg-grafana-orange-light transition-colors">
+            <button 
+              onClick={() => setTimeRange('24h')}
+              className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                timeRange === '24h'
+                  ? 'bg-grafana-orange text-white hover:bg-grafana-orange-light'
+                  : 'bg-grafana-bg text-grafana-text-secondary hover:bg-grafana-hover hover:text-grafana-text'
+              }`}
+            >
               Last 24h
             </button>
-            <button className="px-3 py-1 bg-grafana-bg text-grafana-text-secondary text-xs font-medium rounded hover:bg-grafana-hover hover:text-grafana-text transition-colors">
+            <button 
+              onClick={() => setTimeRange('7d')}
+              className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                timeRange === '7d'
+                  ? 'bg-grafana-orange text-white hover:bg-grafana-orange-light'
+                  : 'bg-grafana-bg text-grafana-text-secondary hover:bg-grafana-hover hover:text-grafana-text'
+              }`}
+            >
               Last 7d
             </button>
-            <button className="px-3 py-1 bg-grafana-bg text-grafana-text-secondary text-xs font-medium rounded hover:bg-grafana-hover hover:text-grafana-text transition-colors">
+            <button 
+              onClick={() => setTimeRange('30d')}
+              className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                timeRange === '30d'
+                  ? 'bg-grafana-orange text-white hover:bg-grafana-orange-light'
+                  : 'bg-grafana-bg text-grafana-text-secondary hover:bg-grafana-hover hover:text-grafana-text'
+              }`}
+            >
               Last 30d
             </button>
           </div>

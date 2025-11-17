@@ -164,7 +164,31 @@ export default function LineChart({
             {timestamps.map((_, idx) => {
               if (idx % Math.ceil(timestamps.length / 6) === 0) {
                 const date = new Date(timestamps[idx]);
-                const label = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                // Determine date format based on time range
+                const now = new Date();
+                const timeDiff = now.getTime() - date.getTime();
+                const daysDiff = timeDiff / (1000 * 60 * 60 * 24);
+                
+                let label: string;
+                if (daysDiff > 1) {
+                  // For ranges longer than 24h, show date and time
+                  const month = date.toLocaleDateString('en-US', { month: 'short' });
+                  const day = date.getDate();
+                  const time = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                  label = `${month} ${day}, ${time}`;
+                } else {
+                  // For 24h range, show time and date if it's a different day
+                  const isToday = date.toDateString() === now.toDateString();
+                  if (isToday) {
+                    label = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                  } else {
+                    const month = date.toLocaleDateString('en-US', { month: 'short' });
+                    const day = date.getDate();
+                    const time = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                    label = `${month} ${day}, ${time}`;
+                  }
+                }
+                
                 return (
                   <text
                     key={idx}

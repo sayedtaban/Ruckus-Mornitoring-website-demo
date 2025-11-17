@@ -227,10 +227,12 @@ export const causeCodesApi = {
   async getCauseCodes(params?: {
     limit?: number;
     sort?: 'count' | 'impactScore';
+    zoneId?: string; // Optional zone ID to filter cause codes by zone
   }) {
     const queryParams = new URLSearchParams();
     if (params?.limit) queryParams.set('limit', params.limit.toString());
     if (params?.sort) queryParams.set('sort', params.sort);
+    if (params?.zoneId) queryParams.set('zoneId', params.zoneId);
     
     const queryString = queryParams.toString();
     return fetchApi(`/cause-codes${queryString ? `?${queryString}` : ''}`);

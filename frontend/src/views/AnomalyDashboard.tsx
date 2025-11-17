@@ -26,6 +26,7 @@ export default function AnomalyDashboard({ venueData, anomalies }: AnomalyDashbo
   }, [anomalies, venueData.zones]);
 
   const [experienceTimeSeriesData, setExperienceTimeSeriesData] = useState<TimeSeriesData[]>([]);
+  const [timeRange, setTimeRange] = useState<'24h' | '7d' | '30d'>('24h');
 
   useEffect(() => {
     let isCancelled = false;
@@ -39,7 +40,34 @@ export default function AnomalyDashboard({ venueData, anomalies }: AnomalyDashbo
       const zoneIds = affectedZones.slice(0, 3).map((zone) => zone.id).join(',');
 
       try {
-        const series = await timeSeriesApi.getTimeSeries({ metric: 'experienceScore', zoneIds });
+        // Calculate time range based on selection
+        const now = new Date();
+        let startTime: Date;
+        let interval: number;
+        
+        switch (timeRange) {
+          case '7d':
+            startTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            interval = 180; // 3 hours
+            break;
+          case '30d':
+            startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+            interval = 720; // 12 hours
+            break;
+          case '24h':
+          default:
+            startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+            interval = 60; // 1 hour
+            break;
+        }
+
+        const series = await timeSeriesApi.getTimeSeries({ 
+          metric: 'experienceScore', 
+          zoneIds,
+          startTime: startTime.toISOString(),
+          endTime: now.toISOString(),
+          interval
+        });
         if (!isCancelled) {
           setExperienceTimeSeriesData(series);
         }
@@ -56,7 +84,7 @@ export default function AnomalyDashboard({ venueData, anomalies }: AnomalyDashbo
     return () => {
       isCancelled = true;
     };
-  }, [affectedZones]);
+  }, [affectedZones, timeRange]);
 
   const anomalyTypeBreakdown = useMemo(() => {
     const breakdown = anomalies.reduce((acc, a) => {
@@ -135,11 +163,50 @@ export default function AnomalyDashboard({ venueData, anomalies }: AnomalyDashbo
       </div>
 
       {experienceTimeSeriesData.length > 0 ? (
-        <LineChart
-          data={experienceTimeSeriesData}
-          title="Experience Score - Affected Zones with Detected Anomalies (24 Hours)"
-          valueFormatter={(v) => v.toFixed(1)}
-        />
+        <div className="bg-grafana-panel border border-grafana-border rounded p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-normal text-grafana-text">
+              Experience Score - Affected Zones with Detected Anomalies
+            </h3>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => setTimeRange('24h')}
+                className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                  timeRange === '24h'
+                    ? 'bg-grafana-orange text-white hover:bg-grafana-orange-light'
+                    : 'bg-grafana-bg text-grafana-text-secondary hover:bg-grafana-hover hover:text-grafana-text'
+                }`}
+              >
+                Last 24h
+              </button>
+              <button 
+                onClick={() => setTimeRange('7d')}
+                className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                  timeRange === '7d'
+                    ? 'bg-grafana-orange text-white hover:bg-grafana-orange-light'
+                    : 'bg-grafana-bg text-grafana-text-secondary hover:bg-grafana-hover hover:text-grafana-text'
+                }`}
+              >
+                Last 7d
+              </button>
+              <button 
+                onClick={() => setTimeRange('30d')}
+                className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                  timeRange === '30d'
+                    ? 'bg-grafana-orange text-white hover:bg-grafana-orange-light'
+                    : 'bg-grafana-bg text-grafana-text-secondary hover:bg-grafana-hover hover:text-grafana-text'
+                }`}
+              >
+                Last 30d
+              </button>
+            </div>
+          </div>
+          <LineChart
+            data={experienceTimeSeriesData}
+            title=""
+            valueFormatter={(v) => v.toFixed(1)}
+          />
+        </div>
       ) : (
         <div className="bg-grafana-panel border border-dashed border-grafana-border rounded p-6 text-sm text-grafana-text-secondary">
           Experience score time series data is unavailable for the affected zones.
