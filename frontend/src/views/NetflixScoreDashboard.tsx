@@ -129,11 +129,25 @@ export default function NetflixScoreDashboard({ venueData, causeCodeData }: Netf
         console.log('[NetflixScoreDashboard] Cause codes count:', codes.length);
         if (codes.length > 0) {
           console.log('[NetflixScoreDashboard] First cause code:', codes[0]);
+          console.log('[NetflixScoreDashboard] All cause code counts:', codes.map(c => ({ code: c.code, count: c.count, description: c.description })));
+          const totalCount = codes.reduce((sum, c) => sum + c.count, 0);
+          console.log('[NetflixScoreDashboard] Total count across all cause codes:', totalCount);
+        } else {
+          console.warn('[NetflixScoreDashboard] No cause codes returned for zone:', zoneFilter);
         }
         
         if (!isCancelled) {
+          const previousCodes = zoneCauseCodes;
           setZoneCauseCodes(codes);
           console.log('[NetflixScoreDashboard] Updated zoneCauseCodes state');
+          if (previousCodes.length > 0 && codes.length > 0) {
+            const prevTotal = previousCodes.reduce((sum, c) => sum + c.count, 0);
+            const newTotal = codes.reduce((sum, c) => sum + c.count, 0);
+            console.log('[NetflixScoreDashboard] Previous total count:', prevTotal, 'New total count:', newTotal);
+            if (prevTotal === newTotal) {
+              console.warn('[NetflixScoreDashboard] WARNING: Total count did not change! Data may not be filtered correctly.');
+            }
+          }
         }
       } catch (err) {
         console.error('[NetflixScoreDashboard] Failed to fetch zone-specific cause codes', err);

@@ -40,8 +40,17 @@ class WiFiMetricsService:
         return AccessPointListResponse.model_validate(data)
 
     async def get_cause_codes(self, limit: int | None, sort: str | None, zone_id: str | None = None) -> list[CauseCode]:
+        print(f"[MetricsService] get_cause_codes called with zone_id={zone_id}")
+        print(f"[MetricsService] Repository type: {type(self._repository).__name__}")
         data = await self._repository.get_cause_codes(limit=limit, sort=sort, zone_id=zone_id)
-        return self._parse_collection(data, CauseCode)
+        print(f"[MetricsService] Repository returned {len(data)} cause codes")
+        if data:
+            print(f"[MetricsService] First cause code from repository: {data[0]}")
+        result = self._parse_collection(data, CauseCode)
+        print(f"[MetricsService] Parsed to {len(result)} CauseCode objects")
+        if result:
+            print(f"[MetricsService] First parsed cause code: code={result[0].code}, count={result[0].count}")
+        return result
 
     async def get_anomalies(
         self,
