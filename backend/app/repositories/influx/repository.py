@@ -300,8 +300,8 @@ class InfluxWiFiMetricsRepository(WiFiMetricsRepository):
         if zone_id:
             print(f"[InfluxRepository] Filtering cause codes by zoneId: {zone_id}")
             
-            # Try to get APs for this zone to filter by their MAC addresses
-            # This is needed if ap_disconnect_cause doesn't have zoneId field
+            # ALWAYS get APs for this zone to filter by their MAC addresses
+            # The ap_disconnect_cause measurement may not have zoneId field, so we filter by AP MAC
             try:
                 zone_aps_data = await self.get_zone_access_points(
                     zone_id=zone_id,
@@ -318,10 +318,24 @@ class InfluxWiFiMetricsRepository(WiFiMetricsRepository):
                     print(f"[InfluxRepository] Found {len(zone_ap_macs)} APs in zone {zone_id}")
                     if zone_ap_macs:
                         print(f"[InfluxRepository] Sample AP MACs: {list(zone_ap_macs)[:3]}")
+                    else:
+                        print(f"[InfluxRepository] WARNING: No AP MACs found for zone {zone_id}!")
+                else:
+                    print(f"[InfluxRepository] WARNING: No AP data returned for zone {zone_id}")
             except Exception as e:
-                print(f"[InfluxRepository] Error getting zone APs, will try zoneId filter: {e}")
+                print(f"[InfluxRepository] ERROR getting zone APs: {e}")
+                import traceback
+                traceback.print_exc()
+                # If we can't get APs, we can't filter - return empty result
+                return []
             
-            # Try filtering by zoneId first (if the measurement has it)
+            # If we don't have any AP MACs, we can't filter - return empty
+            if not zone_ap_macs:
+                print(f"[InfluxRepository] No AP MACs available for filtering, returning empty result")
+                return []
+            
+            # Also try filtering by zoneId in Flux query (if the measurement has it)
+            # This is optional - the AP MAC filtering below is the primary method
             zone_filter = f'|> filter(fn: (r) => r["zoneId"] == "{zone_id}")'
             filters.append(zone_filter)
         
@@ -365,14 +379,19 @@ class InfluxWiFiMetricsRepository(WiFiMetricsRepository):
                 # Get AP MAC address to count unique APs
                 ap_mac = str(record.values.get("apMac", "")).upper()
                 
-                # If filtering by zone and we have AP MACs, skip if AP is not in the zone
-                if zone_id and zone_ap_macs:
+                # If filtering by zone, we MUST have AP MACs and the AP must be in the zone
+                if zone_id:
+                    if not zone_ap_macs:
+                        # This shouldn't happen if we checked above, but double-check
+                        print(f"[InfluxRepository] ERROR: zone_id provided but no zone_ap_macs available!")
+                        continue
                     if not ap_mac or ap_mac not in zone_ap_macs:
+                        # Skip this record - AP is not in the selected zone
                         continue
                     else:
                         # Log first few matches for debugging
-                        if len(aggregates) < 3:
-                            print(f"[InfluxRepository] Including cause code {cause_tag_str} from AP {ap_mac}")
+                        if len(aggregates) < 3 or entry.get("count", 0) == 0:
+                            print(f"[InfluxRepository] Including cause code {cause_tag_str} from AP {ap_mac} (count will be {entry.get('count', 0) + 1})")
 
                 # Initialize seen_aps for this cause code if needed
                 if cause_tag_str not in seen_aps:

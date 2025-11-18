@@ -50,8 +50,11 @@ def get_metrics_service() -> WiFiMetricsService:
         settings = get_settings()
         
         if settings.data_backend == "mock":
+            print(f"[Deps] Using MockWiFiMetricsRepository (data_backend={settings.data_backend})")
             repository = MockWiFiMetricsRepository()
         elif settings.data_backend == "influx":
+            print(f"[Deps] Using InfluxWiFiMetricsRepository (data_backend={settings.data_backend})")
+            print(f"[Deps] InfluxDB URL: {settings.influx_url}, Org: {settings.influx_org}, Bucket: {settings.influx_bucket}")
             repository = InfluxWiFiMetricsRepository(
                 url=settings.influx_url,
                 token=settings.influx_token,
@@ -63,6 +66,7 @@ def get_metrics_service() -> WiFiMetricsService:
         
         return WiFiMetricsService(repository=repository)
     except Exception as e:
-        # Fallback to mock repository if there's an error initializing the configured backend
-        # This ensures the API doesn't crash if InfluxDB is unavailable
-        return WiFiMetricsService(repository=MockWiFiMetricsRepository())
+        # Log the error but DO NOT fallback to mock - raise the error instead
+        print(f"[Deps] ERROR initializing {settings.data_backend} repository: {e}")
+        print(f"[Deps] Raising exception instead of falling back to mock")
+        raise
