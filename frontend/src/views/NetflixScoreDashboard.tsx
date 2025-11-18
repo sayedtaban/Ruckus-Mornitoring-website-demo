@@ -109,48 +109,61 @@ export default function NetflixScoreDashboard({ venueData, causeCodeData }: Netf
   // State for zone-specific cause codes
   const [zoneCauseCodes, setZoneCauseCodes] = useState<CauseCodeData[]>([]);
 
-  // Fetch cause codes for selected zone
+  // Fetch cause codes for selected zone (or all zones if 'all' is selected)
   useEffect(() => {
     let isCancelled = false;
 
     async function fetchZoneCauseCodes() {
       console.log('[NetflixScoreDashboard] Zone filter changed:', zoneFilter);
       
-      if (zoneFilter === 'all') {
-        console.log('[NetflixScoreDashboard] Zone filter is "all", clearing zone cause codes');
-        setZoneCauseCodes([]);
-        return;
-      }
-
       try {
-        console.log('[NetflixScoreDashboard] Fetching cause codes for zone:', zoneFilter);
-        const codes = await causeCodesApi.getCauseCodes({ zoneId: zoneFilter }) as CauseCodeData[];
-        console.log('[NetflixScoreDashboard] Received zone-specific cause codes:', codes);
-        console.log('[NetflixScoreDashboard] Cause codes count:', codes.length);
-        if (codes.length > 0) {
-          console.log('[NetflixScoreDashboard] First cause code:', codes[0]);
-          console.log('[NetflixScoreDashboard] All cause code counts:', codes.map(c => ({ code: c.code, count: c.count, description: c.description })));
-          const totalCount = codes.reduce((sum, c) => sum + c.count, 0);
-          console.log('[NetflixScoreDashboard] Total count across all cause codes:', totalCount);
+        if (zoneFilter === 'all') {
+          console.log('[NetflixScoreDashboard] Zone filter is "all", fetching most recent cause codes from all zones');
+          // Fetch most recent cause codes from all zones (no zoneId filter)
+          const codes = await causeCodesApi.getCauseCodes() as CauseCodeData[];
+          console.log('[NetflixScoreDashboard] Received cause codes from all zones:', codes);
+          console.log('[NetflixScoreDashboard] Cause codes count:', codes.length);
+          if (codes.length > 0) {
+            console.log('[NetflixScoreDashboard] First cause code:', codes[0]);
+            console.log('[NetflixScoreDashboard] All cause code counts:', codes.map(c => ({ code: c.code, count: c.count, description: c.description })));
+            const totalCount = codes.reduce((sum, c) => sum + c.count, 0);
+            console.log('[NetflixScoreDashboard] Total count across all cause codes:', totalCount);
+          }
+          
+          if (!isCancelled) {
+            setZoneCauseCodes(codes);
+            console.log('[NetflixScoreDashboard] Updated zoneCauseCodes state with all zones data');
+          }
         } else {
-          console.warn('[NetflixScoreDashboard] No cause codes returned for zone:', zoneFilter);
-        }
-        
-        if (!isCancelled) {
-          const previousCodes = zoneCauseCodes;
-          setZoneCauseCodes(codes);
-          console.log('[NetflixScoreDashboard] Updated zoneCauseCodes state');
-          if (previousCodes.length > 0 && codes.length > 0) {
-            const prevTotal = previousCodes.reduce((sum, c) => sum + c.count, 0);
-            const newTotal = codes.reduce((sum, c) => sum + c.count, 0);
-            console.log('[NetflixScoreDashboard] Previous total count:', prevTotal, 'New total count:', newTotal);
-            if (prevTotal === newTotal) {
-              console.warn('[NetflixScoreDashboard] WARNING: Total count did not change! Data may not be filtered correctly.');
+          console.log('[NetflixScoreDashboard] Fetching cause codes for zone:', zoneFilter);
+          const codes = await causeCodesApi.getCauseCodes({ zoneId: zoneFilter }) as CauseCodeData[];
+          console.log('[NetflixScoreDashboard] Received zone-specific cause codes:', codes);
+          console.log('[NetflixScoreDashboard] Cause codes count:', codes.length);
+          if (codes.length > 0) {
+            console.log('[NetflixScoreDashboard] First cause code:', codes[0]);
+            console.log('[NetflixScoreDashboard] All cause code counts:', codes.map(c => ({ code: c.code, count: c.count, description: c.description })));
+            const totalCount = codes.reduce((sum, c) => sum + c.count, 0);
+            console.log('[NetflixScoreDashboard] Total count across all cause codes:', totalCount);
+          } else {
+            console.warn('[NetflixScoreDashboard] No cause codes returned for zone:', zoneFilter);
+          }
+          
+          if (!isCancelled) {
+            const previousCodes = zoneCauseCodes;
+            setZoneCauseCodes(codes);
+            console.log('[NetflixScoreDashboard] Updated zoneCauseCodes state');
+            if (previousCodes.length > 0 && codes.length > 0) {
+              const prevTotal = previousCodes.reduce((sum, c) => sum + c.count, 0);
+              const newTotal = codes.reduce((sum, c) => sum + c.count, 0);
+              console.log('[NetflixScoreDashboard] Previous total count:', prevTotal, 'New total count:', newTotal);
+              if (prevTotal === newTotal) {
+                console.warn('[NetflixScoreDashboard] WARNING: Total count did not change! Data may not be filtered correctly.');
+              }
             }
           }
         }
       } catch (err) {
-        console.error('[NetflixScoreDashboard] Failed to fetch zone-specific cause codes', err);
+        console.error('[NetflixScoreDashboard] Failed to fetch cause codes', err);
         if (!isCancelled) {
           setZoneCauseCodes([]);
         }
@@ -171,20 +184,17 @@ export default function NetflixScoreDashboard({ venueData, causeCodeData }: Netf
     console.log('[NetflixScoreDashboard] zoneCauseCodes.length:', zoneCauseCodes.length);
     console.log('[NetflixScoreDashboard] causeCodeData.length:', causeCodeData.length);
     
-    if (zoneFilter === 'all') {
-      console.log('[NetflixScoreDashboard] Using all zones cause codes');
-      return causeCodeData;
-    }
-
-    // Use zone-specific cause codes if available
+    // Always use zoneCauseCodes if available (it will have most recent data)
+    // For 'all' zones, zoneCauseCodes will contain aggregated data from all zones
+    // For specific zone, zoneCauseCodes will contain filtered data for that zone
     if (zoneCauseCodes.length > 0) {
-      console.log('[NetflixScoreDashboard] Using zone-specific cause codes');
-      console.log('[NetflixScoreDashboard] Zone-specific cause codes:', zoneCauseCodes);
+      console.log('[NetflixScoreDashboard] Using zoneCauseCodes (most recent data)');
+      console.log('[NetflixScoreDashboard] Cause codes:', zoneCauseCodes);
       return zoneCauseCodes;
     }
 
-    // Fallback to original data if zone-specific data is not yet loaded
-    console.log('[NetflixScoreDashboard] Fallback to original cause codes (zone data not loaded yet)');
+    // Fallback to original causeCodeData if zoneCauseCodes is not yet loaded
+    console.log('[NetflixScoreDashboard] Fallback to original causeCodeData (zoneCauseCodes not loaded yet)');
     return causeCodeData;
   }, [zoneFilter, causeCodeData, zoneCauseCodes]);
   
