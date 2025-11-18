@@ -39,8 +39,8 @@ class WiFiMetricsService:
         )
         return AccessPointListResponse.model_validate(data)
 
-    async def get_cause_codes(self, limit: int | None, sort: str | None) -> list[CauseCode]:
-        data = await self._repository.get_cause_codes(limit=limit, sort=sort)
+    async def get_cause_codes(self, limit: int | None, sort: str | None, zone_id: str | None = None) -> list[CauseCode]:
+        data = await self._repository.get_cause_codes(limit=limit, sort=sort, zone_id=zone_id)
         return self._parse_collection(data, CauseCode)
 
     async def get_anomalies(

@@ -26,6 +26,7 @@ class WiFiMetricsRepository(ABC):
         self,
         limit: int | None,
         sort: str | None,
+        zone_id: str | None = None,
     ) -> list[dict[str, Any]]:
         raise NotImplementedError
 

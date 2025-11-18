@@ -7,8 +7,18 @@ interface BarChartProps {
 }
 
 export default function BarChart({ data, title, highlightCode = 25 }: BarChartProps) {
+  console.log('[BarChart] Received data:', data);
+  console.log('[BarChart] Data length:', data.length);
+  if (data.length > 0) {
+    console.log('[BarChart] First item:', data[0]);
+    console.log('[BarChart] All counts:', data.map(d => ({ code: d.code, count: d.count })));
+  }
+  
   const maxCount = Math.max(...data.map(d => d.count));
   const sortedData = [...data].sort((a, b) => b.count - a.count).slice(0, 8);
+  
+  console.log('[BarChart] Max count:', maxCount);
+  console.log('[BarChart] Sorted data (top 8):', sortedData.map(d => ({ code: d.code, count: d.count })));
 
   return (
     <div className="bg-grafana-panel border border-grafana-border rounded p-6">

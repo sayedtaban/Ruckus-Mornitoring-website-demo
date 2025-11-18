@@ -291,7 +291,10 @@ class InfluxWiFiMetricsRepository(WiFiMetricsRepository):
         self,
         limit: int | None,
         sort: str | None,
+        zone_id: str | None = None,
     ) -> list[dict[str, Any]]:
+        # TODO: Implement zone_id filtering for InfluxDB
+        # This would require filtering by APs that belong to the zone
         tables = await self._raw_query(
             "ap_disconnect_cause",
             range_="-24h",

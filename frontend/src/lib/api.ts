@@ -235,7 +235,13 @@ export const causeCodesApi = {
     if (params?.zoneId) queryParams.set('zoneId', params.zoneId);
     
     const queryString = queryParams.toString();
-    return fetchApi(`/cause-codes${queryString ? `?${queryString}` : ''}`);
+    const url = `/cause-codes${queryString ? `?${queryString}` : ''}`;
+    console.log('[causeCodesApi] Fetching cause codes from:', url);
+    console.log('[causeCodesApi] Params:', params);
+    
+    const result = await fetchApi(url);
+    console.log('[causeCodesApi] Received result:', result);
+    return result;
   },
 };
 

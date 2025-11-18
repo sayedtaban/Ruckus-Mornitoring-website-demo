@@ -3,7 +3,7 @@ import { VenueData, CauseCodeData, TimeSeriesData } from '../types';
 import LineChart from '../components/LineChart';
 import BarChart from '../components/BarChart';
 import { Activity, AlertTriangle, TrendingDown, Radio } from 'lucide-react';
-import { timeSeriesApi } from '../lib/api';
+import { timeSeriesApi, causeCodesApi } from '../lib/api';
 
 interface NetflixScoreDashboardProps {
   venueData: VenueData;
@@ -106,26 +106,73 @@ export default function NetflixScoreDashboard({ venueData, causeCodeData }: Netf
     ? filteredZones.reduce((sum, z) => sum + z.netflixScore, 0) / filteredZones.length 
     : 0;
   
-  // Compute filtered cause codes - use useMemo for immediate synchronous updates
+  // State for zone-specific cause codes
+  const [zoneCauseCodes, setZoneCauseCodes] = useState<CauseCodeData[]>([]);
+
+  // Fetch cause codes for selected zone
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function fetchZoneCauseCodes() {
+      console.log('[NetflixScoreDashboard] Zone filter changed:', zoneFilter);
+      
+      if (zoneFilter === 'all') {
+        console.log('[NetflixScoreDashboard] Zone filter is "all", clearing zone cause codes');
+        setZoneCauseCodes([]);
+        return;
+      }
+
+      try {
+        console.log('[NetflixScoreDashboard] Fetching cause codes for zone:', zoneFilter);
+        const codes = await causeCodesApi.getCauseCodes({ zoneId: zoneFilter }) as CauseCodeData[];
+        console.log('[NetflixScoreDashboard] Received zone-specific cause codes:', codes);
+        console.log('[NetflixScoreDashboard] Cause codes count:', codes.length);
+        if (codes.length > 0) {
+          console.log('[NetflixScoreDashboard] First cause code:', codes[0]);
+        }
+        
+        if (!isCancelled) {
+          setZoneCauseCodes(codes);
+          console.log('[NetflixScoreDashboard] Updated zoneCauseCodes state');
+        }
+      } catch (err) {
+        console.error('[NetflixScoreDashboard] Failed to fetch zone-specific cause codes', err);
+        if (!isCancelled) {
+          setZoneCauseCodes([]);
+        }
+      }
+    }
+
+    fetchZoneCauseCodes();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [zoneFilter]);
+
+  // Compute filtered cause codes - use zone-specific data when zone is selected
   const zoneFilteredCauseCodes = useMemo(() => {
+    console.log('[NetflixScoreDashboard] Computing zoneFilteredCauseCodes');
+    console.log('[NetflixScoreDashboard] zoneFilter:', zoneFilter);
+    console.log('[NetflixScoreDashboard] zoneCauseCodes.length:', zoneCauseCodes.length);
+    console.log('[NetflixScoreDashboard] causeCodeData.length:', causeCodeData.length);
+    
     if (zoneFilter === 'all') {
+      console.log('[NetflixScoreDashboard] Using all zones cause codes');
       return causeCodeData;
     }
 
-    // For specific zone, scale down proportionally
-    // This provides immediate visual feedback when zone filter changes
-    const totalZones = venueData.zones.length;
-    if (totalZones === 0 || causeCodeData.length === 0) {
-      return causeCodeData;
+    // Use zone-specific cause codes if available
+    if (zoneCauseCodes.length > 0) {
+      console.log('[NetflixScoreDashboard] Using zone-specific cause codes');
+      console.log('[NetflixScoreDashboard] Zone-specific cause codes:', zoneCauseCodes);
+      return zoneCauseCodes;
     }
-    
-    const scaleFactor = 1 / totalZones;
-    
-    return causeCodeData.map(item => ({
-      ...item,
-      count: Math.max(0, Math.round(item.count * scaleFactor))
-    }));
-  }, [zoneFilter, causeCodeData, venueData.zones.length]);
+
+    // Fallback to original data if zone-specific data is not yet loaded
+    console.log('[NetflixScoreDashboard] Fallback to original cause codes (zone data not loaded yet)');
+    return causeCodeData;
+  }, [zoneFilter, causeCodeData, zoneCauseCodes]);
   
   const cause25Data = zoneFilteredCauseCodes.find(c => c.code === 25);
 
@@ -422,11 +469,20 @@ export default function NetflixScoreDashboard({ venueData, causeCodeData }: Netf
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <BarChart 
-          data={zoneFilteredCauseCodes} 
-          title={`802.11 Disconnect Cause Codes${zoneFilter !== 'all' ? ` - ${zoneOptions.find(z => z.id === zoneFilter)?.name || ''}` : ''}`}
-          highlightCode={25} 
-        />
+        {(() => {
+          console.log('[NetflixScoreDashboard] Rendering BarChart with data:', zoneFilteredCauseCodes);
+          console.log('[NetflixScoreDashboard] BarChart data length:', zoneFilteredCauseCodes.length);
+          if (zoneFilteredCauseCodes.length > 0) {
+            console.log('[NetflixScoreDashboard] First cause code in BarChart:', zoneFilteredCauseCodes[0]);
+          }
+          return (
+            <BarChart 
+              data={zoneFilteredCauseCodes} 
+              title={`802.11 Disconnect Cause Codes${zoneFilter !== 'all' ? ` - ${zoneOptions.find(z => z.id === zoneFilter)?.name || ''}` : ''}`}
+              highlightCode={25} 
+            />
+          );
+        })()}
 
         <div className="bg-grafana-panel border border-grafana-border rounded p-6">
           <h3 className="text-lg font-semibold text-grafana-text mb-4">

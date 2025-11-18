@@ -81,11 +81,64 @@ class MockWiFiMetricsRepository(WiFiMetricsRepository):
             },
         }
 
-    async def get_cause_codes(self, limit: int | None, sort: str | None) -> list[dict[str, Any]]:
+    async def get_cause_codes(self, limit: int | None, sort: str | None, zone_id: str | None = None) -> list[dict[str, Any]]:
+        print(f"[MockRepository] get_cause_codes called with limit={limit}, sort={sort}, zone_id={zone_id}")
         data = list(self._cause_codes)
+        print(f"[MockRepository] Original cause codes count: {len(data)}")
+        if data:
+            print(f"[MockRepository] Original first cause code: code={data[0].get('code')}, count={data[0].get('count')}")
+        
+        # If zone_id is provided, scale cause codes based on zone's AP count
+        if zone_id:
+            print(f"[MockRepository] Filtering by zone_id: {zone_id}")
+            # Get total APs across all zones
+            total_aps = self._venue.get("totalAPs", 1)
+            print(f"[MockRepository] Total APs: {total_aps}")
+            
+            # Get APs for the specific zone
+            zone_aps = 0
+            for zone in self._venue.get("zones", []):
+                if zone.get("id") == zone_id:
+                    zone_aps = zone.get("totalAPs", 0)
+                    print(f"[MockRepository] Found zone {zone_id} with {zone_aps} APs")
+                    break
+            
+            # Scale cause code counts proportionally based on zone's AP count
+            if total_aps > 0 and zone_aps > 0:
+                scale_factor = zone_aps / total_aps
+                print(f"[MockRepository] Scale factor: {scale_factor} ({zone_aps}/{total_aps})")
+                data = [
+                    {
+                        **item,
+                        "count": max(0, int(item.get("count", 0) * scale_factor)),
+                        "impactScore": item.get("impactScore", 0) * scale_factor
+                    }
+                    for item in data
+                ]
+                print(f"[MockRepository] Scaled first cause code: code={data[0].get('code')}, count={data[0].get('count')}")
+            else:
+                print(f"[MockRepository] Zone has no APs or invalid data, returning zero counts")
+                # If zone has no APs, return empty counts
+                data = [
+                    {
+                        **item,
+                        "count": 0,
+                        "impactScore": 0
+                    }
+                    for item in data
+                ]
+        else:
+            print(f"[MockRepository] No zone_id provided, returning all cause codes")
+        
         if sort in {"count", "impactScore"}:
             data.sort(key=lambda item: item.get(sort, 0), reverse=True)
-        return data[:limit] if limit else data
+            print(f"[MockRepository] Sorted by {sort}")
+        
+        result = data[:limit] if limit else data
+        print(f"[MockRepository] Returning {len(result)} cause codes")
+        if result:
+            print(f"[MockRepository] First result: code={result[0].get('code')}, count={result[0].get('count')}")
+        return result
 
     async def get_anomalies(
         self,
