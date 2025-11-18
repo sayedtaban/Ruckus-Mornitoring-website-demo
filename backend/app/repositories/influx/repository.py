@@ -295,47 +295,10 @@ class InfluxWiFiMetricsRepository(WiFiMetricsRepository):
     ) -> list[dict[str, Any]]:
         # Build filters for zone filtering
         filters = []
-        zone_ap_macs: set[str] = set()
         
         if zone_id:
             print(f"[InfluxRepository] Filtering cause codes by zoneId: {zone_id}")
-            
-            # ALWAYS get APs for this zone to filter by their MAC addresses
-            # The ap_disconnect_cause measurement may not have zoneId field, so we filter by AP MAC
-            try:
-                zone_aps_data = await self.get_zone_access_points(
-                    zone_id=zone_id,
-                    limit=None,  # Get all APs for the zone
-                    offset=None,
-                    sort=None,
-                )
-                if zone_aps_data and "list" in zone_aps_data:
-                    zone_ap_macs = {
-                        ap.get("mac", "").upper()
-                        for ap in zone_aps_data["list"]
-                        if ap.get("mac")
-                    }
-                    print(f"[InfluxRepository] Found {len(zone_ap_macs)} APs in zone {zone_id}")
-                    if zone_ap_macs:
-                        print(f"[InfluxRepository] Sample AP MACs: {list(zone_ap_macs)[:3]}")
-                    else:
-                        print(f"[InfluxRepository] WARNING: No AP MACs found for zone {zone_id}!")
-                else:
-                    print(f"[InfluxRepository] WARNING: No AP data returned for zone {zone_id}")
-            except Exception as e:
-                print(f"[InfluxRepository] ERROR getting zone APs: {e}")
-                import traceback
-                traceback.print_exc()
-                # If we can't get APs, we can't filter - return empty result
-                return []
-            
-            # If we don't have any AP MACs, we can't filter - return empty
-            if not zone_ap_macs:
-                print(f"[InfluxRepository] No AP MACs available for filtering, returning empty result")
-                return []
-            
-            # Also try filtering by zoneId in Flux query (if the measurement has it)
-            # This is optional - the AP MAC filtering below is the primary method
+            # Filter by zoneId directly in Flux query
             zone_filter = f'|> filter(fn: (r) => r["zoneId"] == "{zone_id}")'
             filters.append(zone_filter)
         
@@ -381,7 +344,6 @@ class InfluxWiFiMetricsRepository(WiFiMetricsRepository):
 
         # Second pass: Count unique APs per cause code at most recent time
         records_processed = 0
-        records_filtered_by_zone = 0
         records_included = 0
         
         for table in tables:
@@ -400,17 +362,8 @@ class InfluxWiFiMetricsRepository(WiFiMetricsRepository):
                 # Get AP MAC address to count unique APs
                 ap_mac = str(record.values.get("apMac", "")).upper()
                 
-                # If filtering by zone, we MUST have AP MACs and the AP must be in the zone
-                if zone_id:
-                    if not zone_ap_macs:
-                        # This shouldn't happen if we checked above, but double-check
-                        print(f"[InfluxRepository] ERROR: zone_id provided but no zone_ap_macs available!")
-                        continue
-                    if not ap_mac or ap_mac not in zone_ap_macs:
-                        # Skip this record - AP is not in the selected zone
-                        records_filtered_by_zone += 1
-                        continue
-                    records_included += 1
+                # Records are already filtered by zoneId in the Flux query, so we just process them
+                records_included += 1
 
                 # Initialize seen_aps for this cause code if needed
                 if cause_tag_str not in seen_aps:
@@ -454,7 +407,7 @@ class InfluxWiFiMetricsRepository(WiFiMetricsRepository):
                     entry["code"] = int(value)
 
         results = list(aggregates.values())
-        print(f"[InfluxRepository] Records processed: {records_processed}, filtered by zone: {records_filtered_by_zone}, included: {records_included}")
+        print(f"[InfluxRepository] Records processed: {records_processed}, included: {records_included}")
         print(f"[InfluxRepository] Aggregated {len(results)} unique cause codes")
         if results:
             print(f"[InfluxRepository] Sample result: code={results[0].get('code')}, count={results[0].get('count')}")
