@@ -345,10 +345,13 @@ class InfluxWiFiMetricsRepository(WiFiMetricsRepository):
             filters=filters if filters else None,
         )
 
-        # First pass: Find the most recent timestamp
+        # First pass: Find the most recent timestamp and count total records
         most_recent_time = None
+        total_records = 0
+        records_at_most_recent = 0
         for table in tables:
             for record in table.records:
+                total_records += 1
                 record_time = record.values.get("_time")
                 if record_time:
                     if (most_recent_time is None or
@@ -356,7 +359,20 @@ class InfluxWiFiMetricsRepository(WiFiMetricsRepository):
                         most_recent_time = record_time
 
         if most_recent_time is None:
+            print(f"[InfluxRepository] No records found in ap_disconnect_cause measurement")
             return []
+        
+        print(f"[InfluxRepository] Total records queried: {total_records}")
+        print(f"[InfluxRepository] Most recent timestamp: {most_recent_time}")
+        
+        # Count records at most recent time
+        for table in tables:
+            for record in table.records:
+                record_time = record.values.get("_time")
+                if record_time == most_recent_time:
+                    records_at_most_recent += 1
+        
+        print(f"[InfluxRepository] Records at most recent time: {records_at_most_recent}")
 
         aggregates: dict[str, dict[str, Any]] = {}
         # Track unique APs per cause code for the most recent time
@@ -364,6 +380,10 @@ class InfluxWiFiMetricsRepository(WiFiMetricsRepository):
         seen_aps: dict[str, set[str]] = {}
 
         # Second pass: Count unique APs per cause code at most recent time
+        records_processed = 0
+        records_filtered_by_zone = 0
+        records_included = 0
+        
         for table in tables:
             for record in table.records:
                 cause_tag = record.values.get("causeCode")
@@ -375,6 +395,7 @@ class InfluxWiFiMetricsRepository(WiFiMetricsRepository):
                 if record_time != most_recent_time:
                     continue
 
+                records_processed += 1
                 cause_tag_str = str(cause_tag)
                 # Get AP MAC address to count unique APs
                 ap_mac = str(record.values.get("apMac", "")).upper()
@@ -387,7 +408,9 @@ class InfluxWiFiMetricsRepository(WiFiMetricsRepository):
                         continue
                     if not ap_mac or ap_mac not in zone_ap_macs:
                         # Skip this record - AP is not in the selected zone
+                        records_filtered_by_zone += 1
                         continue
+                    records_included += 1
 
                 # Initialize seen_aps for this cause code if needed
                 if cause_tag_str not in seen_aps:
@@ -431,9 +454,11 @@ class InfluxWiFiMetricsRepository(WiFiMetricsRepository):
                     entry["code"] = int(value)
 
         results = list(aggregates.values())
-        print(f"[InfluxRepository] Aggregated {len(results)} cause codes")
+        print(f"[InfluxRepository] Records processed: {records_processed}, filtered by zone: {records_filtered_by_zone}, included: {records_included}")
+        print(f"[InfluxRepository] Aggregated {len(results)} unique cause codes")
         if results:
             print(f"[InfluxRepository] Sample result: code={results[0].get('code')}, count={results[0].get('count')}")
+            print(f"[InfluxRepository] All cause codes: {[(r.get('code'), r.get('count')) for r in results]}")
         
         if sort == "impactScore":
             results.sort(
