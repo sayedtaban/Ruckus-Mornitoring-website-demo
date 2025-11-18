@@ -410,10 +410,7 @@ class InfluxWiFiMetricsRepository(WiFiMetricsRepository):
                         # Skip this record - AP is not in the selected zone
                         records_filtered_by_zone += 1
                         continue
-<<<<<<< HEAD
                     records_included += 1
-=======
->>>>>>> b3bd9841f45e47c1bca67b0633288bcbbc47dd78
 
                 # Initialize seen_aps for this cause code if needed
                 if cause_tag_str not in seen_aps:
