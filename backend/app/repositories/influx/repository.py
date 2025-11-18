@@ -388,10 +388,6 @@ class InfluxWiFiMetricsRepository(WiFiMetricsRepository):
                     if not ap_mac or ap_mac not in zone_ap_macs:
                         # Skip this record - AP is not in the selected zone
                         continue
-                    else:
-                        # Log first few matches for debugging
-                        if len(aggregates) < 3 or entry.get("count", 0) == 0:
-                            print(f"[InfluxRepository] Including cause code {cause_tag_str} from AP {ap_mac} (count will be {entry.get('count', 0) + 1})")
 
                 # Initialize seen_aps for this cause code if needed
                 if cause_tag_str not in seen_aps:
@@ -410,6 +406,10 @@ class InfluxWiFiMetricsRepository(WiFiMetricsRepository):
                         "impactScore": 0.0,
                     },
                 )
+                
+                # Log first few matches for debugging (after entry is created)
+                if zone_id and len(aggregates) <= 3 and entry.get("count", 0) == 0:
+                    print(f"[InfluxRepository] Including cause code {cause_tag_str} from AP {ap_mac}")
 
                 field = record.values.get("_field")
                 value = record.get_value()
