@@ -293,11 +293,42 @@ class InfluxWiFiMetricsRepository(WiFiMetricsRepository):
         sort: str | None,
         zone_id: str | None = None,
     ) -> list[dict[str, Any]]:
-        # TODO: Implement zone_id filtering for InfluxDB
-        # This would require filtering by APs that belong to the zone
+        # Build filters for zone filtering
+        filters = []
+        zone_ap_macs: set[str] = set()
+        
+        if zone_id:
+            print(f"[InfluxRepository] Filtering cause codes by zoneId: {zone_id}")
+            
+            # Try to get APs for this zone to filter by their MAC addresses
+            # This is needed if ap_disconnect_cause doesn't have zoneId field
+            try:
+                zone_aps_data = await self.get_zone_access_points(
+                    zone_id=zone_id,
+                    limit=None,  # Get all APs for the zone
+                    offset=None,
+                    sort=None,
+                )
+                if zone_aps_data and "list" in zone_aps_data:
+                    zone_ap_macs = {
+                        ap.get("mac", "").upper()
+                        for ap in zone_aps_data["list"]
+                        if ap.get("mac")
+                    }
+                    print(f"[InfluxRepository] Found {len(zone_ap_macs)} APs in zone {zone_id}")
+                    if zone_ap_macs:
+                        print(f"[InfluxRepository] Sample AP MACs: {list(zone_ap_macs)[:3]}")
+            except Exception as e:
+                print(f"[InfluxRepository] Error getting zone APs, will try zoneId filter: {e}")
+            
+            # Try filtering by zoneId first (if the measurement has it)
+            zone_filter = f'|> filter(fn: (r) => r["zoneId"] == "{zone_id}")'
+            filters.append(zone_filter)
+        
         tables = await self._raw_query(
             "ap_disconnect_cause",
             range_="-24h",
+            filters=filters if filters else None,
         )
 
         # First pass: Find the most recent timestamp
@@ -332,7 +363,16 @@ class InfluxWiFiMetricsRepository(WiFiMetricsRepository):
 
                 cause_tag_str = str(cause_tag)
                 # Get AP MAC address to count unique APs
-                ap_mac = str(record.values.get("apMac", ""))
+                ap_mac = str(record.values.get("apMac", "")).upper()
+                
+                # If filtering by zone and we have AP MACs, skip if AP is not in the zone
+                if zone_id and zone_ap_macs:
+                    if not ap_mac or ap_mac not in zone_ap_macs:
+                        continue
+                    else:
+                        # Log first few matches for debugging
+                        if len(aggregates) < 3:
+                            print(f"[InfluxRepository] Including cause code {cause_tag_str} from AP {ap_mac}")
 
                 # Initialize seen_aps for this cause code if needed
                 if cause_tag_str not in seen_aps:
@@ -372,6 +412,10 @@ class InfluxWiFiMetricsRepository(WiFiMetricsRepository):
                     entry["code"] = int(value)
 
         results = list(aggregates.values())
+        print(f"[InfluxRepository] Aggregated {len(results)} cause codes")
+        if results:
+            print(f"[InfluxRepository] Sample result: code={results[0].get('code')}, count={results[0].get('count')}")
+        
         if sort == "impactScore":
             results.sort(
                 key=lambda item: item.get("impactScore", 0),
@@ -385,6 +429,8 @@ class InfluxWiFiMetricsRepository(WiFiMetricsRepository):
 
         if limit:
             results = results[:limit]
+        
+        print(f"[InfluxRepository] Returning {len(results)} cause codes (after limit)")
         return results
 
     async def get_anomalies(
